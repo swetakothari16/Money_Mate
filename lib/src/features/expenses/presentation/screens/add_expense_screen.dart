@@ -8,6 +8,7 @@ import '../../../../core/theme/app_dimens.dart';
 import '../../data/models/expense_model.dart';
 import '../../providers/expense_providers.dart';
 import '../../../categories/providers/category_providers.dart';
+import '../../../../core/utils/icon_mapper.dart';
 
 class AddExpenseScreen extends ConsumerStatefulWidget {
   const AddExpenseScreen({super.key});
@@ -114,7 +115,11 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                                 children: [
                                   CircleAvatar(
                                     backgroundColor: color.withOpacity(0.15),
-                                    child: Icon(Icons.category, color: color, size: 20),
+                                    child: Icon(
+                                      IconMapper.getIcon(category.iconName, categoryName: category.name),
+                                      color: color,
+                                      size: 20,
+                                    ),
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
@@ -271,7 +276,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '\$',
+                          '₹',
                           style: theme.textTheme.displayMedium?.copyWith(
                             color: theme.colorScheme.onSurface.withOpacity(0.4),
                           ),
@@ -325,7 +330,12 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                   borderRadius: BorderRadius.circular(AppDimens.radiusMd),
                 ),
                 tileColor: theme.inputDecorationTheme.fillColor,
-                leading: const Icon(Icons.category_outlined),
+                leading: _selectedCategory != null
+                    ? Icon(
+                        IconMapper.getIcon(_selectedCategory!.iconName, categoryName: _selectedCategory!.name),
+                        color: AppColors.categoryColors[_selectedCategory!.colorIndex % AppColors.categoryColors.length],
+                      )
+                    : const Icon(Icons.category_outlined),
                 title: Text(
                   _selectedCategory?.name ?? 'Select Category',
                   style: theme.textTheme.bodyMedium?.copyWith(

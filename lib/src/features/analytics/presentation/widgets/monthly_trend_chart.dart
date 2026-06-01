@@ -3,7 +3,6 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_dimens.dart';
 import '../../providers/analytics_providers.dart';
 import '../../../../core/utils/formatters.dart';
 
@@ -116,8 +115,8 @@ class MonthlyTrendChartWidget extends ConsumerWidget {
                 ),
               ],
             ),
-            swapAnimationDuration: const Duration(milliseconds: 800),
-            swapAnimationCurve: Curves.easeInOutCubic,
+            duration: const Duration(milliseconds: 800),
+            curve: Curves.easeInOutCubic,
           ),
         );
       },

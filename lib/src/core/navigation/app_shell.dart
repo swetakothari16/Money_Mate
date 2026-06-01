@@ -3,7 +3,6 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../core/routing/app_router.dart';
-import '../../core/theme/app_colors.dart';
 
 /// Main scaffold shell with bottom navigation bar.
 /// Wraps all tabbed routes via GoRouter's ShellRoute.

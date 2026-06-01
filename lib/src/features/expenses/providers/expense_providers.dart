@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
@@ -124,6 +125,9 @@ final expenseTypeFilterProvider = StateProvider<TransactionType?>((ref) => null)
 /// Currently selected category filter.
 final expenseCategoryFilterProvider = StateProvider<String?>((ref) => null);
 
+/// Search query filter for transactions.
+final expenseSearchQueryProvider = StateProvider<String>((ref) => '');
+
 /// Filtered expenses based on active filters.
 ///
 /// Watches the main expense list and all filter providers, returning
@@ -134,6 +138,7 @@ final filteredExpensesProvider = Provider<AsyncValue<List<ExpenseModel>>>((ref) 
   final dateRange = ref.watch(expenseDateRangeProvider);
   final typeFilter = ref.watch(expenseTypeFilterProvider);
   final categoryFilter = ref.watch(expenseCategoryFilterProvider);
+  final searchQuery = ref.watch(expenseSearchQueryProvider).toLowerCase().trim();
 
   return expensesAsync.whenData((expenses) {
     var filtered = expenses;
@@ -154,6 +159,16 @@ final filteredExpensesProvider = Provider<AsyncValue<List<ExpenseModel>>>((ref) 
     // Apply category filter
     if (categoryFilter != null) {
       filtered = filtered.where((e) => e.category == categoryFilter).toList();
+    }
+
+    // Apply search query filter
+    if (searchQuery.isNotEmpty) {
+      filtered = filtered.where((e) {
+        final titleMatch = e.title.toLowerCase().contains(searchQuery);
+        final categoryMatch = e.category.toLowerCase().contains(searchQuery);
+        final noteMatch = e.note != null && e.note!.toLowerCase().contains(searchQuery);
+        return titleMatch || categoryMatch || noteMatch;
+      }).toList();
     }
 
     return filtered;
@@ -255,7 +270,7 @@ final todaysSpendingProvider = FutureProvider.autoDispose<double>((ref) async {
   final startOfDay = DateTime(now.year, now.month, now.day);
   final endOfDay = DateTime(now.year, now.month, now.day, 23, 59, 59);
   final expenses = await repo.getExpensesByDateRange(startOfDay, endOfDay, type: TransactionType.expense);
-  return expenses.fold(0.0, (sum, e) => sum + e.amount);
+  return expenses.fold<double>(0.0, (sum, e) => sum + e.amount);
 });
 
 /// Current month's total spending.
@@ -265,5 +280,5 @@ final currentMonthSpendingProvider = FutureProvider.autoDispose<double>((ref) as
   final startOfMonth = DateTime(now.year, now.month, 1);
   final endOfMonth = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
   final expenses = await repo.getExpensesByDateRange(startOfMonth, endOfMonth, type: TransactionType.expense);
-  return expenses.fold(0.0, (sum, e) => sum + e.amount);
+  return expenses.fold<double>(0.0, (sum, e) => sum + e.amount);
 });

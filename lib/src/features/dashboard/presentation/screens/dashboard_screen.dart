@@ -11,6 +11,7 @@ import '../../../../shared/widgets/glass_card.dart';
 import '../../../expenses/data/models/expense_model.dart';
 import '../../../expenses/providers/expense_providers.dart';
 import '../../../budgets/providers/budget_providers.dart';
+import '../../../../core/utils/icon_mapper.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -36,15 +37,52 @@ class DashboardScreen extends ConsumerWidget {
           },
           child: CustomScrollView(
             slivers: [
-              // ─── Header ──────────────────────────────────────────────
+              // ─── Header (SpendWise Logo + Welcome) ──────────────────────
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(
-                    AppDimens.lg, AppDimens.lg, AppDimens.lg, AppDimens.sm,
+                    AppDimens.lg, AppDimens.md, AppDimens.lg, AppDimens.sm,
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // SpendWise Branding Top Bar
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: const BoxDecoration(
+                                  color: AppColors.income,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.bolt_rounded,
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'SpendWise',
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 18,
+                                  letterSpacing: -0.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.more_vert_rounded),
+                            onPressed: () {},
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      // Welcome Section
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -52,25 +90,44 @@ class DashboardScreen extends ConsumerWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Good Morning 👋',
+                                'Welcome back,',
                                 style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: theme.colorScheme.onSurface.withOpacity(0.6),
+                                  color: theme.colorScheme.onSurface.withOpacity(0.5),
                                 ),
                               ),
-                              const SizedBox(height: AppDimens.xs),
+                              const SizedBox(height: 4),
                               Text(
-                                'Money Mate',
-                                style: theme.textTheme.displaySmall,
+                                'Alex Harrison',
+                                style: theme.textTheme.headlineLarge?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                ),
                               ),
                             ],
                           ),
-                          CircleAvatar(
-                            radius: 22,
-                            backgroundColor: theme.colorScheme.primary.withOpacity(0.15),
-                            child: Icon(
-                              Icons.person_rounded,
-                              color: theme.colorScheme.primary,
-                            ),
+                          Stack(
+                            children: [
+                              CircleAvatar(
+                                radius: 24,
+                                backgroundColor: theme.colorScheme.primary.withOpacity(0.15),
+                                backgroundImage: const NetworkImage(
+                                  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=256',
+                                ),
+                                child: const Icon(Icons.person_rounded, color: AppColors.income),
+                              ),
+                              Positioned(
+                                right: 0,
+                                bottom: 0,
+                                child: Container(
+                                  width: 10,
+                                  height: 10,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.income,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: Colors.white, width: 2),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -87,7 +144,7 @@ class DashboardScreen extends ConsumerWidget {
                     vertical: AppDimens.sm,
                   ),
                   child: expenseSummaryAsync.when(
-                    data: (summary) => _buildBalanceCard(context, summary),
+                    data: (summary) => _buildBalanceCard(context, summary, ref),
                     loading: () => const SizedBox(height: 200, child: Center(child: CircularProgressIndicator())),
                     error: (e, _) => Center(child: Text('Error: $e')),
                   ).animate().fadeIn(duration: 600.ms, delay: 100.ms).slideY(begin: 0.15),
@@ -291,65 +348,230 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildBalanceCard(BuildContext context, ExpenseSummary summary) {
+  Widget _buildBalanceCard(BuildContext context, ExpenseSummary summary, WidgetRef ref) {
     final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(AppDimens.lg),
-      decoration: BoxDecoration(
-        gradient: AppColors.heroGradient,
-        borderRadius: BorderRadius.circular(AppDimens.radiusXl),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primaryDark.withOpacity(0.3),
-            blurRadius: 24,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Text(
-            'Total Balance',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: Colors.white.withOpacity(0.8),
+    final budgetsAsync = ref.watch(allBudgetStatusesProvider);
+    
+    // Set fallback budget if none exists
+    double budgetLimit = 50000.0;
+    double spentAmount = summary.totalExpense;
+    double remainingAmount = budgetLimit - spentAmount;
+    double progress = budgetLimit > 0 ? (spentAmount / budgetLimit) : 0.0;
+    String budgetName = 'Monthly Budget';
+    
+    final statuses = budgetsAsync.value ?? [];
+    if (statuses.isNotEmpty) {
+      final status = statuses.first;
+      budgetLimit = status.budget.limitAmount;
+      spentAmount = status.spentAmount;
+      remainingAmount = status.remainingAmount;
+      progress = status.progress;
+      budgetName = status.budget.name;
+    }
+
+    final percent = (progress * 100).clamp(0, 100).toInt();
+    final remainingText = remainingAmount >= 0
+        ? "You're on track to save ${CurrencyFormatter.format(remainingAmount)} this month"
+        : "Over budget by ${CurrencyFormatter.format(remainingAmount.abs())}";
+
+    Widget _buildStatCard(
+      String label,
+      double amount,
+      IconData icon,
+      Color color,
+      Color iconBg,
+    ) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: theme.cardTheme.color,
+          borderRadius: BorderRadius.circular(16),
+          border: theme.cardTheme.shape is RoundedRectangleBorder
+              ? Border.fromBorderSide((theme.cardTheme.shape as RoundedRectangleBorder).side)
+              : Border.all(color: theme.colorScheme.outlineVariant.withOpacity(0.3)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.02),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
-          ),
-          const SizedBox(height: AppDimens.sm),
-          Text(
-            CurrencyFormatter.format(summary.balance),
-            style: theme.textTheme.displayLarge?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: iconBg,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: color, size: 14),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: color,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
             ),
-          ),
-          const SizedBox(height: AppDimens.lg),
-          Row(
-            children: [
-              Expanded(
-                child: _BalanceSummaryItem(
-                  label: 'Income',
-                  amount: CurrencyFormatter.formatCompact(summary.totalIncome),
-                  icon: Icons.arrow_downward_rounded,
-                  color: AppColors.income,
-                ),
+            const SizedBox(height: 12),
+            Text(
+              CurrencyFormatter.format(amount),
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w700,
+                fontSize: 18,
               ),
-              Container(
-                width: 1,
-                height: 40,
-                color: Colors.white.withOpacity(0.2),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _buildStatCard(
+                'INCOME',
+                summary.totalIncome,
+                Icons.north_east_rounded,
+                AppColors.income,
+                AppColors.income.withOpacity(0.12),
               ),
-              Expanded(
-                child: _BalanceSummaryItem(
-                  label: 'Expense',
-                  amount: CurrencyFormatter.formatCompact(summary.totalExpense),
-                  icon: Icons.arrow_upward_rounded,
-                  color: AppColors.expense,
-                ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _buildStatCard(
+                'EXPENSES',
+                summary.totalExpense,
+                Icons.south_east_rounded,
+                AppColors.expense,
+                AppColors.expense.withOpacity(0.12),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            gradient: AppColors.heroGradient,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primarySeed.withOpacity(0.2),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
               ),
             ],
           ),
-        ],
-      ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    budgetName.toUpperCase(),
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: Colors.white.withOpacity(0.8),
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Text(
+                      '8 days left',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                CurrencyFormatter.format(budgetLimit),
+                style: theme.textTheme.displaySmall?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Spent: ${CurrencyFormatter.format(spentAmount)}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  Text(
+                    '$percent%',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: LinearProgressIndicator(
+                  value: progress.clamp(0.0, 1.0),
+                  minHeight: 8,
+                  backgroundColor: Colors.white.withOpacity(0.25),
+                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      remainingText,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.9),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -422,7 +644,7 @@ class _BudgetsSection extends ConsumerWidget {
               const SizedBox(height: AppDimens.sm),
               Text(
                 status.isOverBudget 
-                    ? 'Over budget by ${CurrencyFormatter.format(Math.abs(status.remainingAmount))}' 
+                    ? 'Over budget by ${CurrencyFormatter.format(status.remainingAmount.abs())}' 
                     : '${CurrencyFormatter.format(status.remainingAmount)} remaining',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: color,
@@ -443,59 +665,6 @@ class _BudgetsSection extends ConsumerWidget {
 extension DoubleAbs on double {
   double abs() => this < 0 ? -this : this;
 }
-
-class _BalanceSummaryItem extends StatelessWidget {
-  final String label;
-  final String amount;
-  final IconData icon;
-  final Color color;
-
-  const _BalanceSummaryItem({
-    required this.label,
-    required this.amount,
-    required this.icon,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.2),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, size: 14, color: color),
-            ),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.7),
-                fontSize: 13,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        Text(
-          amount,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _QuickActionButton extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -550,14 +719,43 @@ class _TransactionTile extends StatelessWidget {
 
   const _TransactionTile({required this.expense});
 
+  Color _getColorForCategory(String name, Color defaultColor) {
+    switch (name.toLowerCase()) {
+      case 'food':
+      case 'food & dining':
+      case 'food & drinks':
+        return const Color(0xFFF59E0B); // Amber/Orange
+      case 'transport':
+      case 'transportation':
+        return const Color(0xFF3B82F6); // Blue
+      case 'shopping':
+        return const Color(0xFFEC4899); // Pink
+      case 'entertainment':
+        return const Color(0xFF8B5CF6); // Purple
+      case 'health':
+      case 'health & medical':
+        return const Color(0xFF06B6D4); // Cyan
+      case 'bills':
+      case 'bills & utilities':
+        return const Color(0xFFEF4444); // Red
+      case 'rent':
+      case 'rent & housing':
+      case 'housing':
+        return const Color(0xFF14B8A6); // Teal
+      case 'salary':
+        return const Color(0xFF10B981); // Emerald Green
+      default:
+        return defaultColor;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isIncome = expense.type == TransactionType.income;
-    final color = isIncome ? AppColors.income : AppColors.expense;
-    
-    // We use a fallback icon here. In a full app you'd map the category name to the correct icon.
-    final icon = isIncome ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded;
+    final defaultColor = isIncome ? AppColors.income : AppColors.expense;
+    final color = _getColorForCategory(expense.category, defaultColor);
+    final icon = IconMapper.getIcon(null, categoryName: expense.category);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: AppDimens.sm),
@@ -568,7 +766,7 @@ class _TransactionTile extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.15),
+                color: color.withOpacity(0.12),
                 shape: BoxShape.circle,
               ),
               child: Icon(icon, color: color, size: 20),
@@ -598,7 +796,7 @@ class _TransactionTile extends StatelessWidget {
                 Text(
                   '${isIncome ? '+' : '-'}${CurrencyFormatter.format(expense.amount)}',
                   style: theme.textTheme.titleSmall?.copyWith(
-                    color: color,
+                    color: isIncome ? AppColors.income : AppColors.expense,
                     fontWeight: FontWeight.w600,
                   ),
                 ),

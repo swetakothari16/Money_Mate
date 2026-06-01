@@ -7,6 +7,7 @@ import '../../../../core/theme/app_dimens.dart';
 import '../../data/models/budget_model.dart';
 import '../../providers/budget_providers.dart';
 import '../../../categories/providers/category_providers.dart';
+import '../../../../core/utils/icon_mapper.dart';
 
 class AddBudgetScreen extends ConsumerStatefulWidget {
   const AddBudgetScreen({super.key});
@@ -111,7 +112,11 @@ class _AddBudgetScreenState extends ConsumerState<AddBudgetScreen> {
                                 children: [
                                   CircleAvatar(
                                     backgroundColor: color.withOpacity(0.15),
-                                    child: Icon(Icons.category, color: color, size: 20),
+                                    child: Icon(
+                                      IconMapper.getIcon(category.iconName, categoryName: category.name),
+                                      color: color,
+                                      size: 20,
+                                    ),
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
@@ -244,7 +249,7 @@ class _AddBudgetScreenState extends ConsumerState<AddBudgetScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '\$',
+                          '₹',
                           style: theme.textTheme.displayMedium?.copyWith(
                             color: theme.colorScheme.onSurface.withOpacity(0.4),
                           ),
@@ -327,7 +332,12 @@ class _AddBudgetScreenState extends ConsumerState<AddBudgetScreen> {
                   borderRadius: BorderRadius.circular(AppDimens.radiusMd),
                 ),
                 tileColor: theme.inputDecorationTheme.fillColor,
-                leading: Icon(_selectedCategory == null ? Icons.all_inclusive : Icons.category_outlined),
+                leading: _selectedCategory == null
+                    ? Icon(Icons.all_inclusive, color: theme.colorScheme.primary)
+                    : Icon(
+                        IconMapper.getIcon(_selectedCategory!.iconName, categoryName: _selectedCategory!.name),
+                        color: AppColors.categoryColors[_selectedCategory!.colorIndex % AppColors.categoryColors.length],
+                      ),
                 title: Text(
                   _selectedCategory?.name ?? 'Overall Budget',
                   style: theme.textTheme.bodyMedium?.copyWith(

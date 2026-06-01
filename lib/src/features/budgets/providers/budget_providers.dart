@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/models/budget_model.dart';
 import '../data/repositories/budget_repository.dart';
 import '../../expenses/data/repositories/expense_repository.dart';
+import '../../expenses/data/models/expense_model.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // BUDGET LIST PROVIDER (AsyncNotifier)
@@ -127,7 +128,7 @@ final budgetStatusProvider =
       budget.endDate,
       type: TransactionType.expense,
     );
-    spent = expenses.fold(0.0, (sum, e) => sum + e.amount);
+    spent = expenses.fold<double>(0.0, (sum, e) => sum + e.amount);
   }
 
   final remaining = budget.limitAmount - spent;
@@ -167,7 +168,7 @@ final allBudgetStatusesProvider =
         budget.endDate,
         type: TransactionType.expense,
       );
-      spent = expenses.fold(0.0, (sum, e) => sum + e.amount);
+      spent = expenses.fold<double>(0.0, (sum, e) => sum + e.amount);
     }
 
     final remaining = budget.limitAmount - spent;

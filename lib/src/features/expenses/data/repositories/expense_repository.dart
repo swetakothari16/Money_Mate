@@ -181,7 +181,7 @@ class IsarExpenseRepository implements ExpenseRepository {
     }
 
     final results = await query.findAll();
-    return results.fold(0.0, (sum, e) => sum + e.amount);
+    return results.fold<double>(0.0, (sum, e) => sum + e.amount);
   }
 
   @override
@@ -195,7 +195,7 @@ class IsarExpenseRepository implements ExpenseRepository {
         .categoryEqualTo(category)
         .dateBetween(start, end)
         .findAll();
-    return results.fold(0.0, (sum, e) => sum + e.amount);
+    return results.fold<double>(0.0, (sum, e) => sum + e.amount);
   }
 
   @override

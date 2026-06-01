@@ -26,10 +26,12 @@ class GlassCard extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: gradient ??
             (isDark ? AppColors.cardGradientDark : null),
-        color: isDark ? null : theme.colorScheme.surface,
+        color: isDark ? null : Colors.white,
         borderRadius: BorderRadius.circular(AppDimens.radiusLg),
         border: Border.all(
-          color: (isDark ? Colors.white : Colors.black).withOpacity(0.06),
+          color: isDark
+              ? Colors.white.withOpacity(0.06)
+              : theme.colorScheme.outlineVariant.withOpacity(0.3),
         ),
         boxShadow: isDark
             ? null

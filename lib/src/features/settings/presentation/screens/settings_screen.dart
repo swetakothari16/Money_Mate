@@ -78,7 +78,7 @@ class SettingsScreen extends StatelessWidget {
           _SettingsTile(
             icon: Icons.attach_money_rounded,
             title: 'Currency',
-            subtitle: 'USD (\$)',
+            subtitle: 'INR (₹)',
             onTap: () {},
           ),
           _SettingsTile(

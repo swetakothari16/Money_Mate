@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../providers/analytics_providers.dart';
-import '../../../../core/utils/formatters.dart';
 
 class ExpensePieChartWidget extends ConsumerStatefulWidget {
   const ExpensePieChartWidget({super.key});
@@ -55,8 +54,8 @@ class _ExpensePieChartWidgetState extends ConsumerState<ExpensePieChartWidget> {
                     centerSpaceRadius: 40,
                     sections: _generateSections(data),
                   ),
-                  swapAnimationDuration: const Duration(milliseconds: 800),
-                  swapAnimationCurve: Curves.easeInOutCubic,
+                  duration: const Duration(milliseconds: 800),
+                  curve: Curves.easeInOutCubic,
                 ),
               ),
               Expanded(
