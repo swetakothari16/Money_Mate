@@ -100,4 +100,50 @@ class ExpenseModel {
   /// Composite index: filter by category then sort/filter by date.
   @Index(composite: [CompositeIndex('date')])
   String get categoryDate => category;
+
+  /// Convert model to a map for Firestore upload.
+  Map<String, dynamic> toMap() {
+    return {
+      'uuid': uuid,
+      'title': title,
+      'amount': amount,
+      'date': date.toIso8601String(),
+      'type': type.name,
+      'category': category,
+      'note': note,
+      'paymentMethod': paymentMethod.name,
+      'customCategoryId': customCategoryId,
+      'tags': tags,
+      'isRecurring': isRecurring,
+      'receiptPath': receiptPath,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
+    };
+  }
+
+  /// Create model from a Firestore map.
+  static ExpenseModel fromMap(Map<String, dynamic> map) {
+    final model = ExpenseModel()
+      ..uuid = map['uuid'] as String
+      ..title = map['title'] as String
+      ..amount = (map['amount'] as num).toDouble()
+      ..date = DateTime.parse(map['date'] as String)
+      ..type = TransactionType.values.firstWhere(
+        (e) => e.name == map['type'] as String,
+        orElse: () => TransactionType.expense,
+      )
+      ..category = map['category'] as String
+      ..note = map['note'] as String?
+      ..paymentMethod = PaymentMethod.values.firstWhere(
+        (e) => e.name == map['paymentMethod'] as String,
+        orElse: () => PaymentMethod.cash,
+      )
+      ..customCategoryId = map['customCategoryId'] as int?
+      ..tags = List<String>.from(map['tags'] ?? [])
+      ..isRecurring = map['isRecurring'] as bool? ?? false
+      ..receiptPath = map['receiptPath'] as String?
+      ..createdAt = DateTime.parse(map['createdAt'] as String? ?? DateTime.now().toIso8601String())
+      ..updatedAt = DateTime.parse(map['updatedAt'] as String? ?? DateTime.now().toIso8601String());
+    return model;
+  }
 }

@@ -4,6 +4,7 @@ import 'package:isar/isar.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 import 'src/app.dart';
 import 'src/core/database/isar_service.dart';
@@ -14,6 +15,13 @@ import 'src/features/budgets/data/models/budget_model.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Firebase with fallback for offline mode if configs are missing
+  try {
+    await Firebase.initializeApp();
+  } catch (e) {
+    debugPrint('Firebase initialization skipped/failed: $e');
+  }
 
   // Initialize databases and preferences
   final dir = await getApplicationDocumentsDirectory();
