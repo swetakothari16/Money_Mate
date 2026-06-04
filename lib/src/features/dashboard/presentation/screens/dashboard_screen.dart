@@ -7,9 +7,11 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_dimens.dart';
 import '../../../../core/routing/app_router.dart';
 import '../../../../core/utils/formatters.dart';
+import '../../../../core/providers/preferences_provider.dart';
 import '../../../../shared/widgets/glass_card.dart';
 import '../../../expenses/data/models/expense_model.dart';
 import '../../../expenses/providers/expense_providers.dart';
+import '../../../budgets/data/models/budget_model.dart';
 import '../../../budgets/providers/budget_providers.dart';
 import '../../../../core/utils/icon_mapper.dart';
 
@@ -22,7 +24,11 @@ class DashboardScreen extends ConsumerWidget {
     
     final expenseSummaryAsync = ref.watch(expenseSummaryProvider);
     final todaysSpendingAsync = ref.watch(todaysSpendingProvider);
+    final currentMonthSpendingAsync = ref.watch(currentMonthSpendingProvider);
     final recentExpensesAsync = ref.watch(recentExpensesProvider);
+    final userName = ref.watch(userNameProvider);
+    // Watch currencySymbolProvider to trigger rebuild when currency changes
+    ref.watch(currencySymbolProvider);
 
     return Scaffold(
       body: SafeArea(
@@ -32,6 +38,7 @@ class DashboardScreen extends ConsumerWidget {
             // Since they watch Isar, they auto-update, but we can invalidate them to force recalculation.
             ref.invalidate(expenseSummaryProvider);
             ref.invalidate(todaysSpendingProvider);
+            ref.invalidate(currentMonthSpendingProvider);
             ref.invalidate(allBudgetStatusesProvider);
             ref.invalidate(recentExpensesProvider);
           },
@@ -46,42 +53,7 @@ class DashboardScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // SpendWise Branding Top Bar
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(6),
-                                decoration: const BoxDecoration(
-                                  color: AppColors.income,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  Icons.bolt_rounded,
-                                  color: Colors.white,
-                                  size: 18,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'SpendWise',
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 18,
-                                  letterSpacing: -0.5,
-                                ),
-                              ),
-                            ],
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.more_vert_rounded),
-                            onPressed: () {},
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
+
                       // Welcome Section
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -97,37 +69,41 @@ class DashboardScreen extends ConsumerWidget {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                'Alex Harrison',
+                                userName ?? 'Guest',
                                 style: theme.textTheme.headlineLarge?.copyWith(
                                   fontWeight: FontWeight.w800,
                                 ),
                               ),
                             ],
                           ),
-                          Stack(
-                            children: [
-                              CircleAvatar(
-                                radius: 24,
-                                backgroundColor: theme.colorScheme.primary.withOpacity(0.15),
-                                backgroundImage: const NetworkImage(
-                                  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=256',
-                                ),
-                                child: const Icon(Icons.person_rounded, color: AppColors.income),
+                          IconButton(
+                            onPressed: () async {
+                              final currentRange = ref.read(expenseDateRangeProvider);
+                              final picked = await showDateRangePicker(
+                                context: context,
+                                firstDate: DateTime(2000),
+                                lastDate: DateTime(2101),
+                                initialDateRange: currentRange,
+                              );
+                              if (picked != null) {
+                                ref.read(expenseDateRangeProvider.notifier).state = picked;
+                                if (context.mounted) {
+                                  context.go(AppRoutes.transactions);
+                                }
+                              }
+                            },
+                            icon: Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.primary.withOpacity(0.12),
+                                shape: BoxShape.circle,
                               ),
-                              Positioned(
-                                right: 0,
-                                bottom: 0,
-                                child: Container(
-                                  width: 10,
-                                  height: 10,
-                                  decoration: BoxDecoration(
-                                    color: AppColors.income,
-                                    shape: BoxShape.circle,
-                                    border: Border.all(color: Colors.white, width: 2),
-                                  ),
-                                ),
+                              child: Icon(
+                                Icons.calendar_today_rounded,
+                                color: theme.colorScheme.primary,
+                                size: 22,
                               ),
-                            ],
+                            ),
                           ),
                         ],
                       ),
@@ -144,7 +120,10 @@ class DashboardScreen extends ConsumerWidget {
                     vertical: AppDimens.sm,
                   ),
                   child: expenseSummaryAsync.when(
-                    data: (summary) => _buildBalanceCard(context, summary, ref),
+                    data: (summary) {
+                      final currentMonthSpending = currentMonthSpendingAsync.value ?? 0.0;
+                      return _buildBalanceCard(context, summary, ref, currentMonthSpending);
+                    },
                     loading: () => const SizedBox(height: 200, child: Center(child: CircularProgressIndicator())),
                     error: (e, _) => Center(child: Text('Error: $e')),
                   ).animate().fadeIn(duration: 600.ms, delay: 100.ms).slideY(begin: 0.15),
@@ -200,63 +179,9 @@ class DashboardScreen extends ConsumerWidget {
                 ),
               ),
 
-              // ─── Budgets Section ──────────────────────────────────────
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: AppDimens.lg, vertical: AppDimens.sm),
-                  child: _BudgetsSection(),
-                ),
-              ),
 
-              // ─── Quick Actions ───────────────────────────────────────
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(AppDimens.lg),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Quick Actions',
-                        style: theme.textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: AppDimens.md),
-                      Row(
-                        children: [
-                          _QuickActionButton(
-                            icon: Icons.add_rounded,
-                            label: 'Add',
-                            gradient: AppColors.primaryGradient,
-                            onTap: () => context.push(AppRoutes.addExpense),
-                          ),
-                          const SizedBox(width: AppDimens.md),
-                          _QuickActionButton(
-                            icon: Icons.pie_chart_rounded,
-                            label: 'Budget',
-                            gradient: AppColors.expenseGradient,
-                            onTap: () => context.push(AppRoutes.addBudget),
-                          ),
-                          const SizedBox(width: AppDimens.md),
-                          _QuickActionButton(
-                            icon: Icons.swap_horiz_rounded,
-                            label: 'Transfer',
-                            gradient: AppColors.incomeGradient,
-                            onTap: () {},
-                          ),
-                          const SizedBox(width: AppDimens.md),
-                          _QuickActionButton(
-                            icon: Icons.history_rounded,
-                            label: 'History',
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFFFFB347), Color(0xFFFF6B9D)],
-                            ),
-                            onTap: () => context.go(AppRoutes.transactions),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ).animate().fadeIn(duration: 500.ms, delay: 200.ms),
-              ),
+
+
 
               // ─── Recent Transactions Header ─────────────────────────
               SliverToBoxAdapter(
@@ -348,26 +273,56 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildBalanceCard(BuildContext context, ExpenseSummary summary, WidgetRef ref) {
+  Widget _buildBalanceCard(
+    BuildContext context,
+    ExpenseSummary summary,
+    WidgetRef ref,
+    double currentMonthSpending,
+  ) {
     final theme = Theme.of(context);
     final budgetsAsync = ref.watch(allBudgetStatusesProvider);
     
-    // Set fallback budget if none exists
-    double budgetLimit = 50000.0;
-    double spentAmount = summary.totalExpense;
-    double remainingAmount = budgetLimit - spentAmount;
-    double progress = budgetLimit > 0 ? (spentAmount / budgetLimit) : 0.0;
-    String budgetName = 'Monthly Budget';
-    
+    // Find overall monthly budget (category is null, period is monthly)
     final statuses = budgetsAsync.value ?? [];
-    if (statuses.isNotEmpty) {
-      final status = statuses.first;
-      budgetLimit = status.budget.limitAmount;
-      spentAmount = status.spentAmount;
-      remainingAmount = status.remainingAmount;
-      progress = status.progress;
-      budgetName = status.budget.name;
+    final overallMonthlyStatus = statuses.cast<BudgetStatus?>().firstWhere(
+      (status) => status != null && status.budget.category == null && status.budget.period == BudgetPeriod.monthly,
+      orElse: () => null,
+    );
+    
+    double budgetLimit;
+    double spentAmount;
+    double remainingAmount;
+    double progress;
+    String budgetName;
+    
+    if (overallMonthlyStatus != null) {
+      budgetLimit = overallMonthlyStatus.budget.limitAmount;
+      spentAmount = overallMonthlyStatus.spentAmount;
+      remainingAmount = overallMonthlyStatus.remainingAmount;
+      progress = overallMonthlyStatus.progress;
+      budgetName = overallMonthlyStatus.budget.name;
+    } else {
+      budgetLimit = 50000.0;
+      spentAmount = currentMonthSpending;
+      remainingAmount = budgetLimit - spentAmount;
+      progress = budgetLimit > 0 ? (spentAmount / budgetLimit) : 0.0;
+      budgetName = 'Monthly Budget';
     }
+
+    final now = DateTime.now();
+    int daysLeft;
+    if (overallMonthlyStatus != null) {
+      final endDate = overallMonthlyStatus.budget.endDate;
+      daysLeft = endDate.difference(DateTime(now.year, now.month, now.day)).inDays;
+    } else {
+      final lastDayOfMonth = DateTime(now.year, now.month + 1, 0);
+      daysLeft = lastDayOfMonth.difference(DateTime(now.year, now.month, now.day)).inDays;
+    }
+    final daysLeftText = daysLeft <= 0 
+        ? 'Last day' 
+        : daysLeft == 1 
+            ? '1 day left' 
+            : '$daysLeft days left';
 
     final percent = (progress * 100).clamp(0, 100).toInt();
     final remainingText = remainingAmount >= 0
@@ -494,9 +449,9 @@ class DashboardScreen extends ConsumerWidget {
                       color: Colors.white.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Text(
-                      '8 days left',
-                      style: TextStyle(
+                    child: Text(
+                      daysLeftText,
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
@@ -578,141 +533,13 @@ class DashboardScreen extends ConsumerWidget {
 
 // ─── Private Widgets ─────────────────────────────────────────────────────
 
-class _BudgetsSection extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final budgetsAsync = ref.watch(allBudgetStatusesProvider);
 
-    return budgetsAsync.when(
-      data: (statuses) {
-        if (statuses.isEmpty) {
-          return GlassCard(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('No active budgets', style: theme.textTheme.titleMedium),
-                    const SizedBox(height: 4),
-                    Text('Set a budget to track spending', style: theme.textTheme.bodySmall),
-                  ],
-                ),
-                FilledButton.tonal(
-                  onPressed: () => context.push(AppRoutes.addBudget),
-                  child: const Text('Setup'),
-                ),
-              ],
-            ),
-          );
-        }
-
-        // Just show the first/top budget as a featured progress bar for the dashboard
-        final status = statuses.first;
-        final color = status.isOverBudget ? AppColors.expense : (status.isNearThreshold ? Colors.orange : AppColors.income);
-
-        return GlassCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    status.budget.name,
-                    style: theme.textTheme.titleMedium,
-                  ),
-                  Text(
-                    '${CurrencyFormatter.formatCompact(status.spentAmount)} / ${CurrencyFormatter.formatCompact(status.budget.limitAmount)}',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: theme.colorScheme.onSurface.withOpacity(0.7),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppDimens.md),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(AppDimens.radiusFull),
-                child: LinearProgressIndicator(
-                  value: status.progress.clamp(0.0, 1.0),
-                  minHeight: 8,
-                  backgroundColor: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
-                  valueColor: AlwaysStoppedAnimation<Color>(color),
-                ),
-              ),
-              const SizedBox(height: AppDimens.sm),
-              Text(
-                status.isOverBudget 
-                    ? 'Over budget by ${CurrencyFormatter.format(status.remainingAmount.abs())}' 
-                    : '${CurrencyFormatter.format(status.remainingAmount)} remaining',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: color,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-      loading: () => const SizedBox(height: 100, child: Center(child: CircularProgressIndicator())),
-      error: (e, _) => GlassCard(child: Text('Error loading budgets: $e')),
-    );
-  }
-}
 
 // Math class is not imported by default in flutter/material, so we need to use `.abs()`
 extension DoubleAbs on double {
   double abs() => this < 0 ? -this : this;
 }
-class _QuickActionButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final LinearGradient gradient;
-  final VoidCallback onTap;
 
-  const _QuickActionButton({
-    required this.icon,
-    required this.label,
-    required this.gradient,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                gradient: gradient,
-                borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-                boxShadow: [
-                  BoxShadow(
-                    color: gradient.colors.first.withOpacity(0.3),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Icon(icon, color: Colors.white, size: 24),
-            ),
-            const SizedBox(height: AppDimens.sm),
-            Text(
-              label,
-              style: theme.textTheme.labelSmall,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 class _TransactionTile extends StatelessWidget {
   final ExpenseModel expense;

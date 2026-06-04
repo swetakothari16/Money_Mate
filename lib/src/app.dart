@@ -6,8 +6,8 @@ import 'core/theme/app_theme.dart';
 import 'core/providers/theme_provider.dart';
 import 'core/services/sync_service.dart';
 
-class MoneyMateApp extends ConsumerWidget {
-  const MoneyMateApp({super.key});
+class ExpensePartnerApp extends ConsumerWidget {
+  const ExpensePartnerApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -18,7 +18,7 @@ class MoneyMateApp extends ConsumerWidget {
     final themeMode = ref.watch(themeModeProvider);
 
     return MaterialApp.router(
-      title: 'Money Mate',
+      title: 'Expense Partner',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,

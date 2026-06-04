@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,12 +9,20 @@ import '../../features/analytics/presentation/screens/analytics_screen.dart';
 import '../../features/settings/presentation/screens/settings_screen.dart';
 import '../../features/expenses/presentation/screens/add_expense_screen.dart';
 import '../../features/budgets/presentation/screens/add_budget_screen.dart';
+import '../../features/budgets/presentation/screens/budgets_screen.dart';
+import '../../features/auth/presentation/screens/login_screen.dart';
+import '../../features/auth/providers/auth_providers.dart';
+import '../../features/onboarding/presentation/screens/setup_screen.dart';
+import '../../core/providers/preferences_provider.dart';
 import '../navigation/app_shell.dart';
 
 /// Named route paths.
 abstract class AppRoutes {
   static const String dashboard = '/';
+  static const String login = '/login';
+  static const String setup = '/setup';
   static const String transactions = '/transactions';
+  static const String budgets = '/budgets';
   static const String addExpense = '/expenses/add';
   static const String addBudget = '/budgets/add';
   static const String analytics = '/analytics';
@@ -22,10 +31,48 @@ abstract class AppRoutes {
 
 /// Global GoRouter provider.
 final appRouterProvider = Provider<GoRouter>((ref) {
+  final authRepo = ref.watch(authRepositoryProvider);
+  final hasCompletedOnboarding = ref.watch(onboardingProvider);
+
   return GoRouter(
     initialLocation: AppRoutes.dashboard,
     debugLogDiagnostics: false,
+    refreshListenable: GoRouterRefreshStream(authRepo.authStateChanges),
+    redirect: (context, state) {
+      final user = authRepo.currentUser;
+      final isLoggingIn = state.matchedLocation == AppRoutes.login;
+      final isOnboarding = state.matchedLocation == AppRoutes.setup;
+
+      if (user == null) {
+        return AppRoutes.login;
+      }
+
+      if (!hasCompletedOnboarding) {
+        if (isOnboarding) return null;
+        return AppRoutes.setup;
+      }
+
+      if (isLoggingIn || isOnboarding) {
+        return AppRoutes.dashboard;
+      }
+
+      return null;
+    },
     routes: [
+      GoRoute(
+        path: AppRoutes.login,
+        name: 'login',
+        pageBuilder: (context, state) => const NoTransitionPage(
+          child: LoginScreen(),
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.setup,
+        name: 'setup',
+        pageBuilder: (context, state) => const NoTransitionPage(
+          child: SetupScreen(),
+        ),
+      ),
       // ─── Shell Route for Bottom Navigation ────────────────────────
       ShellRoute(
         builder: (context, state, child) {
@@ -44,6 +91,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             name: 'transactions',
             pageBuilder: (context, state) => const NoTransitionPage(
               child: TransactionsScreen(),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.budgets,
+            name: 'budgets',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: BudgetsScreen(),
             ),
           ),
           GoRoute(
@@ -105,3 +159,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
+
+class GoRouterRefreshStream extends ChangeNotifier {
+  late final StreamSubscription<dynamic> _subscription;
+
+  GoRouterRefreshStream(Stream<dynamic> stream) {
+    notifyListeners();
+    _subscription = stream.asBroadcastStream().listen((dynamic _) => notifyListeners());
+  }
+
+  @override
+  void dispose() {
+    _subscription.cancel();
+    super.dispose();
+  }
+}

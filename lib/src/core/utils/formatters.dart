@@ -6,19 +6,26 @@ import '../constants/app_constants.dart';
 class CurrencyFormatter {
   CurrencyFormatter._();
 
-  static final _formatter = NumberFormat.currency(
-    symbol: AppConstants.defaultCurrencySymbol,
-    decimalDigits: 2,
-  );
+  static String _currencySymbol = AppConstants.defaultCurrencySymbol;
 
-  static String format(double amount) => _formatter.format(amount);
+  static void updateCurrencySymbol(String symbol) {
+    _currencySymbol = symbol;
+  }
+
+  static String format(double amount) {
+    final formatter = NumberFormat.currency(
+      symbol: _currencySymbol,
+      decimalDigits: 2,
+    );
+    return formatter.format(amount);
+  }
 
   static String formatCompact(double amount) {
     if (amount.abs() >= 1e6) {
-      return '${AppConstants.defaultCurrencySymbol}${(amount / 1e6).toStringAsFixed(1)}M';
+      return '$_currencySymbol${(amount / 1e6).toStringAsFixed(1)}M';
     }
     if (amount.abs() >= 1e3) {
-      return '${AppConstants.defaultCurrencySymbol}${(amount / 1e3).toStringAsFixed(1)}K';
+      return '$_currencySymbol${(amount / 1e3).toStringAsFixed(1)}K';
     }
     return format(amount);
   }

@@ -9,6 +9,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'src/app.dart';
 import 'src/core/database/isar_service.dart';
 import 'src/core/providers/preferences_provider.dart';
+import 'src/core/utils/formatters.dart';
 import 'src/features/expenses/data/models/expense_model.dart';
 import 'src/features/categories/data/models/category_model.dart';
 import 'src/features/budgets/data/models/budget_model.dart';
@@ -28,10 +29,14 @@ void main() async {
   final isar = await Isar.open(
     [ExpenseModelSchema, CategoryModelSchema, BudgetModelSchema],
     directory: dir.path,
-    name: 'money_mate_db',
+    name: 'expense_partner_db',
   );
   
   final prefs = await SharedPreferences.getInstance();
+
+  // Initialize CurrencyFormatter with saved symbol on startup
+  final savedSymbol = prefs.getString('userCurrencySymbol') ?? '₹';
+  CurrencyFormatter.updateCurrencySymbol(savedSymbol);
 
   runApp(
     ProviderScope(
@@ -39,7 +44,7 @@ void main() async {
         isarProvider.overrideWithValue(isar),
         sharedPreferencesProvider.overrideWithValue(prefs),
       ],
-      child: const MoneyMateApp(),
+      child: const ExpensePartnerApp(),
     ),
   );
 }

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Centralized color palette for Money Mate.
+/// Centralized color palette for Expense Partner.
 /// Uses a sophisticated teal-to-violet accent palette with
 /// semantic colors for income/expense indicators.
 class AppColors {

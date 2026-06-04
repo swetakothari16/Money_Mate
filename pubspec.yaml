@@ -1,4 +1,4 @@
-name: money_mate
+name: expense_partner
 description: A modern expense tracker app built with Flutter, Riverpod, GoRouter, and Isar.
 publish_to: 'none'
 version: 1.0.0+1

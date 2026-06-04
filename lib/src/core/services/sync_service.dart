@@ -8,6 +8,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/database/isar_service.dart';
 import '../../features/expenses/data/models/expense_model.dart';
+import '../../features/categories/data/models/category_model.dart';
+import '../../features/budgets/data/models/budget_model.dart';
 
 /// Service managing offline-first data synchronization between local Isar DB and Cloud Firestore.
 class SyncService {
@@ -17,6 +19,8 @@ class SyncService {
 
   StreamSubscription? _isarSubscription;
   StreamSubscription? _firestoreSubscription;
+  StreamSubscription? _authSubscription;
+  String? _currentUid;
 
   bool _isSyncingFromCloud = false;
 
@@ -24,34 +28,87 @@ class SyncService {
 
   /// Initialize Firebase authentication and start bidirectional sync.
   Future<void> initializeSync() async {
-    // Gracefully handle case where user hasn't added google-services.json (Firebase not initialized)
     if (Firebase.apps.isEmpty) {
       debugPrint('SyncService: Firebase is not initialized. Running in offline-only mode.');
       return;
     }
 
-    try {
-      // 1. Sign in anonymously
-      if (_auth.currentUser == null) {
-        await _auth.signInAnonymously();
+    _authSubscription?.cancel();
+    _authSubscription = _auth.authStateChanges().listen((user) async {
+      if (user == null) {
+        debugPrint('SyncService: Auth state changed: No user. Wiping local database and signing in anonymously...');
+        _isarSubscription?.cancel();
+        _firestoreSubscription?.cancel();
+        await clearLocalData();
+        _currentUid = null;
+
+        try {
+          await _auth.signInAnonymously();
+        } catch (e) {
+          debugPrint('SyncService: Anonymous sign-in failed: $e');
+        }
+        return;
       }
 
-      final uid = _auth.currentUser?.uid;
-      if (uid == null) return;
+      final uid = user.uid;
+      if (uid == _currentUid) return;
 
-      debugPrint('SyncService: Authenticated anonymously with UID: $uid');
+      debugPrint('SyncService: Active user switched to: $uid (Anonymous: ${user.isAnonymous})');
 
-      // 2. Initial synchronization from cloud to local Isar database
+      // 1. Cancel previous watchers
+      _isarSubscription?.cancel();
+      _firestoreSubscription?.cancel();
+
+      // 2. If transitioning to a new real email account, merge/push local data to cloud first
+      if (!user.isAnonymous) {
+        await _mergeLocalDataToCloud(uid);
+      }
+
+      // 3. Update current active UID
+      _currentUid = uid;
+
+      // 4. Pull down cloud data for this user
       await syncFromCloud(uid);
 
-      // 3. Listen to remote changes in Firestore
+      // 5. Start watchers
       _listenToCloudChanges(uid);
-
-      // 4. Listen to local changes in Isar
       _listenToLocalChanges(uid);
+    });
+  }
 
+  /// Push all local records to the new user's Firestore path.
+  Future<void> _mergeLocalDataToCloud(String uid) async {
+    try {
+      final localExpenses = await _isar.expenseModels.where().findAll();
+      if (localExpenses.isEmpty) return;
+
+      debugPrint('SyncService: Merging ${localExpenses.length} local expenses to cloud user $uid');
+      final batch = _firestore.batch();
+      final expenseCollection =
+          _firestore.collection('users').doc(uid).collection('expenses');
+
+      for (final expense in localExpenses) {
+        final docRef = expenseCollection.doc(expense.uuid);
+        batch.set(docRef, expense.toMap());
+      }
+      await batch.commit();
+      debugPrint('SyncService: Local data merge complete.');
     } catch (e) {
-      debugPrint('SyncService initialization failed (running offline): $e');
+      debugPrint('SyncService: Failed to merge local data to cloud: $e');
+    }
+  }
+
+  /// Wipe the local Isar database.
+  Future<void> clearLocalData() async {
+    try {
+      await _isar.writeTxn(() async {
+        await _isar.expenseModels.clear();
+        await _isar.categoryModels.clear();
+        await _isar.budgetModels.clear();
+      });
+      debugPrint('SyncService: Local Isar database wiped successfully.');
+    } catch (e) {
+      debugPrint('SyncService: Error wiping local database: $e');
     }
   }
 
@@ -190,6 +247,7 @@ class SyncService {
   void dispose() {
     _isarSubscription?.cancel();
     _firestoreSubscription?.cancel();
+    _authSubscription?.cancel();
   }
 }
 

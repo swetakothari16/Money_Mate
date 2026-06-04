@@ -13,9 +13,10 @@ class AppShell extends StatelessWidget {
 
   int _currentIndex(BuildContext context) {
     final location = GoRouterState.of(context).uri.toString();
-    if (location.startsWith(AppRoutes.analytics)) return 2;
-    if (location.startsWith(AppRoutes.settings)) return 3;
     if (location.startsWith(AppRoutes.transactions)) return 1;
+    if (location.startsWith(AppRoutes.budgets)) return 2;
+    if (location.startsWith(AppRoutes.analytics)) return 3;
+    if (location.startsWith(AppRoutes.settings)) return 4;
     return 0;
   }
 
@@ -59,6 +60,11 @@ class AppShell extends StatelessWidget {
               label: 'Transactions',
             ),
             NavigationDestination(
+              icon: Icon(Icons.pie_chart_outline_rounded),
+              selectedIcon: Icon(Icons.pie_chart_rounded),
+              label: 'Budgets',
+            ),
+            NavigationDestination(
               icon: Icon(Icons.analytics_outlined),
               selectedIcon: Icon(Icons.analytics_rounded),
               label: 'Analytics',
@@ -81,8 +87,10 @@ class AppShell extends StatelessWidget {
       case 1:
         context.go(AppRoutes.transactions);
       case 2:
-        context.go(AppRoutes.analytics);
+        context.go(AppRoutes.budgets);
       case 3:
+        context.go(AppRoutes.analytics);
+      case 4:
         context.go(AppRoutes.settings);
     }
   }

@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:money_mate/src/core/enums/expense_category.dart';
-import 'package:money_mate/src/features/categories/data/models/category_model.dart';
-import 'package:money_mate/src/features/categories/data/repositories/category_repository.dart';
+import 'package:expense_partner/src/core/enums/expense_category.dart';
+import 'package:expense_partner/src/features/categories/data/models/category_model.dart';
+import 'package:expense_partner/src/features/categories/data/repositories/category_repository.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CUSTOM CATEGORY LIST PROVIDER

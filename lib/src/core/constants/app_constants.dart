@@ -2,8 +2,8 @@
 class AppConstants {
   AppConstants._();
 
-  static const String appName = 'Money Mate';
-  static const String dbName = 'money_mate_db';
+  static const String appName = 'Expense Partner';
+  static const String dbName = 'expense_partner_db';
 
   static const String defaultCurrency = 'INR';
   static const String defaultCurrencySymbol = '₹';

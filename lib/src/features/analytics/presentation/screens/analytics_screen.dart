@@ -8,7 +8,6 @@ import '../../../../shared/widgets/glass_card.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../providers/analytics_providers.dart';
 import '../widgets/pie_chart_widget.dart';
-import '../widgets/monthly_trend_chart.dart';
 
 class AnalyticsScreen extends ConsumerWidget {
   const AnalyticsScreen({super.key});
@@ -73,19 +72,6 @@ class AnalyticsScreen extends ConsumerWidget {
                 ],
               ),
               
-              const SizedBox(height: AppDimens.xl),
-              
-              // ─── Trend Graph ───────────────────────────────────────────
-              Text(
-                'Spending Trend',
-                style: theme.textTheme.titleMedium,
-              ).animate().fadeIn(duration: 500.ms, delay: 200.ms),
-              const SizedBox(height: AppDimens.md),
-              GlassCard(
-                padding: const EdgeInsets.all(AppDimens.lg),
-                child: const MonthlyTrendChartWidget(),
-              ).animate().fadeIn(duration: 500.ms, delay: 300.ms).scale(begin: const Offset(0.95, 0.95)),
-
               const SizedBox(height: AppDimens.xl),
 
               // ─── Category Breakdown ────────────────────────────────────

@@ -1,6 +1,6 @@
 {
-    "name": "money_mate",
-    "short_name": "money_mate",
+    "name": "Expense Partner",
+    "short_name": "Expense Partner",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

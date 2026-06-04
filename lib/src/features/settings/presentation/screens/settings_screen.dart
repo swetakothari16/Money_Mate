@@ -1,15 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_dimens.dart';
+import '../../../../core/utils/formatters.dart';
+import '../../../../core/providers/preferences_provider.dart';
+import '../../../auth/providers/auth_providers.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final authState = ref.watch(authStateProvider);
+    final user = authState.value;
+    final isAnonymous = user == null || user.isAnonymous;
 
     return Scaffold(
       appBar: AppBar(
@@ -19,50 +27,107 @@ class SettingsScreen extends StatelessWidget {
         padding: const EdgeInsets.all(AppDimens.lg),
         children: [
           // ─── Profile Card ──────────────────────────────────────────
-          Container(
-            padding: const EdgeInsets.all(AppDimens.lg),
-            decoration: BoxDecoration(
-              gradient: AppColors.cardGradientDark,
-              borderRadius: BorderRadius.circular(AppDimens.radiusLg),
-              border: Border.all(
-                color: theme.colorScheme.outlineVariant.withOpacity(0.1),
+          InkWell(
+            onTap: isAnonymous ? () => context.go('/login') : null,
+            borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+            child: Container(
+              padding: const EdgeInsets.all(AppDimens.lg),
+              decoration: BoxDecoration(
+                gradient: AppColors.cardGradientDark,
+                borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+                border: Border.all(
+                  color: theme.colorScheme.outlineVariant.withOpacity(0.1),
+                ),
+              ),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 28,
+                    backgroundColor: theme.colorScheme.primary.withOpacity(0.2),
+                    child: Icon(
+                      isAnonymous ? Icons.person_outline_rounded : Icons.person_rounded,
+                      size: 28,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(width: AppDimens.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          isAnonymous ? (ref.watch(userNameProvider) ?? 'Offline Guest') : (user.email ?? 'Expense Partner User'),
+                          style: theme.textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          isAnonymous ? 'Sign in to back up data' : 'Cloud sync active',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    color: theme.colorScheme.onSurface.withOpacity(0.3),
+                  ),
+                ],
               ),
             ),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 28,
-                  backgroundColor: theme.colorScheme.primary.withOpacity(0.2),
-                  child: Icon(
-                    Icons.person_rounded,
-                    size: 28,
-                    color: theme.colorScheme.primary,
-                  ),
-                ),
-                const SizedBox(width: AppDimens.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Money Mate User',
-                        style: theme.textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Manage your profile',
-                        style: theme.textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  color: theme.colorScheme.onSurface.withOpacity(0.3),
-                ),
-              ],
-            ),
           ).animate().fadeIn(duration: 400.ms),
+
+          const SizedBox(height: AppDimens.lg),
+
+          // ─── Account Section ───────────────────────────────────────
+          _SectionTitle(title: 'Account'),
+          const SizedBox(height: AppDimens.sm),
+          if (isAnonymous)
+            _SettingsTile(
+              icon: Icons.cloud_queue_rounded,
+              title: 'Back up Data / Register',
+              subtitle: 'Save your data to a secure cloud account',
+              onTap: () => context.go('/login'),
+            ),
+          _SettingsTile(
+            icon: Icons.logout_rounded,
+            title: 'Sign Out',
+            subtitle: isAnonymous ? 'Wipe guest session & return to login' : 'Wipe local cache & log out',
+            onTap: () async {
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Sign Out'),
+                  content: Text(
+                    isAnonymous
+                        ? 'Are you sure you want to sign out? This will wipe your local guest data and return you to the login page.'
+                        : 'Are you sure you want to sign out? This will wipe your local offline database and reset your profile settings. Your cloud data is safe and will be restored when you sign in again.',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Cancel'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('Sign Out', style: TextStyle(color: Colors.red)),
+                    ),
+                  ],
+                ),
+              );
+              if (confirm == true) {
+                // Reset preferences
+                final prefs = ref.read(sharedPreferencesProvider);
+                await prefs.remove('userName');
+                await prefs.remove('userCurrencyCode');
+                await prefs.remove('userCurrencySymbol');
+                await prefs.remove('hasCompletedOnboarding');
+                // Set default currency symbol back
+                CurrencyFormatter.updateCurrencySymbol('₹');
+
+                await ref.read(authRepositoryProvider).signOut();
+              }
+            },
+          ),
 
           const SizedBox(height: AppDimens.lg),
 
@@ -78,8 +143,8 @@ class SettingsScreen extends StatelessWidget {
           _SettingsTile(
             icon: Icons.attach_money_rounded,
             title: 'Currency',
-            subtitle: 'INR (₹)',
-            onTap: () {},
+            subtitle: '${ref.watch(currencyCodeProvider)} (${ref.watch(currencySymbolProvider)})',
+            onTap: () => _showCurrencyDialog(context, ref),
           ),
           _SettingsTile(
             icon: Icons.category_outlined,
@@ -113,11 +178,48 @@ class SettingsScreen extends StatelessWidget {
           const SizedBox(height: AppDimens.sm),
           _SettingsTile(
             icon: Icons.info_outline_rounded,
-            title: 'About Money Mate',
+            title: 'About Expense Partner',
             subtitle: 'Version 1.0.0',
             onTap: () {},
           ),
         ],
+      ),
+    );
+  }
+
+  void _showCurrencyDialog(BuildContext context, WidgetRef ref) {
+    final selectedCode = ref.read(currencyCodeProvider);
+    final currencies = [
+      {'code': 'INR', 'symbol': '₹', 'name': 'Indian Rupee (₹)'},
+      {'code': 'USD', 'symbol': '\$', 'name': 'US Dollar (\$)'},
+      {'code': 'EUR', 'symbol': '€', 'name': 'Euro (€)'},
+      {'code': 'GBP', 'symbol': '£', 'name': 'British Pound (£)'},
+      {'code': 'JPY', 'symbol': '¥', 'name': 'Japanese Yen (¥)'},
+    ];
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Select Currency'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: currencies.map((c) {
+            final isSelected = c['code'] == selectedCode;
+            return RadioListTile<String>(
+              value: c['code']!,
+              groupValue: selectedCode,
+              title: Text(c['name']!),
+              selected: isSelected,
+              onChanged: (val) async {
+                if (val != null) {
+                  await ref.read(currencyCodeProvider.notifier).setCurrencyCode(val);
+                  await ref.read(currencySymbolProvider.notifier).setCurrencySymbol(c['symbol']!);
+                  if (context.mounted) Navigator.pop(context);
+                }
+              },
+            );
+          }).toList(),
+        ),
       ),
     );
   }
