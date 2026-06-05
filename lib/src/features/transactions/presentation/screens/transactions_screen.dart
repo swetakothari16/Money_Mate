@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../../../core/routing/app_router.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_dimens.dart';
@@ -93,6 +96,11 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                 ref.read(expenseDateRangeProvider.notifier).state = null;
               },
             ),
+          IconButton(
+            icon: const Icon(Icons.upload_file_rounded),
+            tooltip: 'Import Statement',
+            onPressed: () => context.push(AppRoutes.statementImport),
+          ),
         ],
       ),
       body: SafeArea(
@@ -459,9 +467,22 @@ class _DismissibleTransactionTile extends ConsumerWidget {
                         color: theme.colorScheme.onSurface.withOpacity(0.5),
                       ),
                     ),
+                    if (expense.note != null && expense.note!.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        expense.note!,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontSize: 10,
+                          color: theme.colorScheme.onSurface.withOpacity(0.4),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ],
                 ),
               ),
+              const SizedBox(width: AppDimens.md),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -472,18 +493,6 @@ class _DismissibleTransactionTile extends ConsumerWidget {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  if (expense.note != null && expense.note!.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      expense.note!,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        fontSize: 10,
-                        color: theme.colorScheme.onSurface.withOpacity(0.4),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
                 ],
               ),
             ],

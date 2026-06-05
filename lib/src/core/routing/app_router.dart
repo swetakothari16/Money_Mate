@@ -8,6 +8,7 @@ import '../../features/transactions/presentation/screens/transactions_screen.dar
 import '../../features/analytics/presentation/screens/analytics_screen.dart';
 import '../../features/settings/presentation/screens/settings_screen.dart';
 import '../../features/expenses/presentation/screens/add_expense_screen.dart';
+import '../../features/statement_import/presentation/screens/statement_import_screen.dart';
 import '../../features/budgets/presentation/screens/add_budget_screen.dart';
 import '../../features/budgets/presentation/screens/budgets_screen.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
@@ -24,6 +25,7 @@ abstract class AppRoutes {
   static const String transactions = '/transactions';
   static const String budgets = '/budgets';
   static const String addExpense = '/expenses/add';
+  static const String statementImport = '/expenses/import';
   static const String addBudget = '/budgets/add';
   static const String analytics = '/analytics';
   static const String settings = '/settings';
@@ -53,6 +55,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
 
       if (isLoggingIn || isOnboarding) {
+        if (user.isAnonymous && isLoggingIn) {
+          return null;
+        }
         return AppRoutes.dashboard;
       }
 
@@ -123,6 +128,25 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: 'addExpense',
         pageBuilder: (context, state) => CustomTransitionPage(
           child: const AddExpenseScreen(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, 1),
+                end: Offset.zero,
+              ).animate(CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeOutCubic,
+              )),
+              child: child,
+            );
+          },
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.statementImport,
+        name: 'statementImport',
+        pageBuilder: (context, state) => CustomTransitionPage(
+          child: const StatementImportScreen(),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return SlideTransition(
               position: Tween<Offset>(
