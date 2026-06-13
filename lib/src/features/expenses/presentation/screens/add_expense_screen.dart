@@ -11,7 +11,9 @@ import '../../../categories/providers/category_providers.dart';
 import '../../../../core/utils/icon_mapper.dart';
 
 class AddExpenseScreen extends ConsumerStatefulWidget {
-  const AddExpenseScreen({super.key});
+  final DateTime? initialDate;
+
+  const AddExpenseScreen({super.key, this.initialDate});
 
   @override
   ConsumerState<AddExpenseScreen> createState() => _AddExpenseScreenState();
@@ -25,10 +27,16 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   final _amountController = TextEditingController();
   final _noteController = TextEditingController();
   
-  DateTime _selectedDate = DateTime.now();
+  late DateTime _selectedDate;
   CategoryItem? _selectedCategory;
 
   bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedDate = widget.initialDate ?? DateTime.now();
+  }
 
   @override
   void dispose() {

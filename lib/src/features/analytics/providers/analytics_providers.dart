@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../expenses/data/models/expense_model.dart';
 import '../../expenses/data/repositories/expense_repository.dart';
 import '../../categories/providers/category_providers.dart';
+import '../../expenses/providers/expense_providers.dart';
 
 // ─── Analytics Period ──────────────────────────────────────────────────
 
@@ -195,4 +196,32 @@ final pieChartDataProvider = FutureProvider.autoDispose<List<CategoryChartData>>
   chartData.sort((a, b) => b.amount.compareTo(a.amount));
   
   return chartData;
+});
+
+/// Provides computed summary (income, expense, balance) for the selected period.
+final analyticsSummaryProvider = FutureProvider.autoDispose<ExpenseSummary>((ref) async {
+  final range = ref.watch(analyticsDateRangeProvider);
+  final repo = ref.watch(expenseRepositoryProvider);
+  final allTransactions = await repo.getExpensesByDateRange(
+    range.start,
+    range.end,
+  );
+  
+  double totalIncome = 0;
+  double totalExpense = 0;
+
+  for (final e in allTransactions) {
+    if (e.type == TransactionType.income) {
+      totalIncome += e.amount;
+    } else if (e.type == TransactionType.expense) {
+      totalExpense += e.amount;
+    }
+  }
+
+  return ExpenseSummary(
+    totalIncome: totalIncome,
+    totalExpense: totalExpense,
+    balance: totalIncome - totalExpense,
+    transactionCount: allTransactions.length,
+  );
 });

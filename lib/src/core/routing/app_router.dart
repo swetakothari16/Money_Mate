@@ -8,6 +8,7 @@ import '../../features/transactions/presentation/screens/transactions_screen.dar
 import '../../features/analytics/presentation/screens/analytics_screen.dart';
 import '../../features/settings/presentation/screens/settings_screen.dart';
 import '../../features/expenses/presentation/screens/add_expense_screen.dart';
+import '../../features/expenses/presentation/screens/calendar_screen.dart';
 import '../../features/statement_import/presentation/screens/statement_import_screen.dart';
 import '../../features/budgets/presentation/screens/add_budget_screen.dart';
 import '../../features/budgets/presentation/screens/budgets_screen.dart';
@@ -25,6 +26,7 @@ abstract class AppRoutes {
   static const String transactions = '/transactions';
   static const String budgets = '/budgets';
   static const String addExpense = '/expenses/add';
+  static const String calendar = '/calendar';
   static const String statementImport = '/expenses/import';
   static const String addBudget = '/budgets/add';
   static const String analytics = '/analytics';
@@ -50,7 +52,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
 
       if (!hasCompletedOnboarding) {
-        if (isOnboarding) return null;
+        if (isOnboarding || isLoggingIn) return null;
         return AppRoutes.setup;
       }
 
@@ -126,8 +128,30 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.addExpense,
         name: 'addExpense',
+        pageBuilder: (context, state) {
+          final initialDate = state.extra as DateTime?;
+          return CustomTransitionPage(
+            child: AddExpenseScreen(initialDate: initialDate),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0, 1),
+                  end: Offset.zero,
+                ).animate(CurvedAnimation(
+                  parent: animation,
+                  curve: Curves.easeOutCubic,
+                )),
+                child: child,
+              );
+            },
+          );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.calendar,
+        name: 'calendar',
         pageBuilder: (context, state) => CustomTransitionPage(
-          child: const AddExpenseScreen(),
+          child: const CalendarScreen(),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return SlideTransition(
               position: Tween<Offset>(

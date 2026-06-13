@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_dimens.dart';
 import '../../../../shared/widgets/glass_card.dart';
 import '../../providers/auth_providers.dart';
+import '../../../../core/providers/preferences_provider.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -49,10 +51,51 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           _passwordController.text,
         );
       } else {
-        await authRepo.signInWithEmail(
+        final credential = await authRepo.signInWithEmail(
           _emailController.text,
           _passwordController.text,
         );
+
+        // Fetch and restore user profile from Firestore if it exists
+        final uid = credential.user?.uid;
+        if (uid != null) {
+          try {
+            final doc = await FirebaseFirestore.instance
+                .collection('users')
+                .doc(uid)
+                .get()
+                .timeout(const Duration(seconds: 4));
+            if (doc.exists) {
+              final data = doc.data();
+              if (data != null) {
+                final name = data['name'] as String?;
+                final currencyCode = data['currencyCode'] as String?;
+                final currencySymbol = data['currencySymbol'] as String?;
+                final hasCompleted = data['hasCompletedOnboarding'] as bool? ?? false;
+
+                final prefs = ref.read(sharedPreferencesProvider);
+                if (name != null) {
+                  await prefs.setString('userName_$uid', name);
+                  ref.read(userNameProvider.notifier).updateState(name);
+                }
+                if (currencyCode != null) {
+                  await prefs.setString('userCurrencyCode_$uid', currencyCode);
+                  ref.read(currencyCodeProvider.notifier).updateState(currencyCode);
+                }
+                if (currencySymbol != null) {
+                  await prefs.setString('userCurrencySymbol_$uid', currencySymbol);
+                  ref.read(currencySymbolProvider.notifier).updateState(currencySymbol);
+                }
+                if (hasCompleted) {
+                  await prefs.setBool('hasCompletedOnboarding_$uid', true);
+                  ref.read(onboardingProvider.notifier).updateState(true);
+                }
+              }
+            }
+          } catch (e) {
+            debugPrint('Error restoring user profile from Firestore on login: $e');
+          }
+        }
       }
       if (mounted) {
         context.go('/');

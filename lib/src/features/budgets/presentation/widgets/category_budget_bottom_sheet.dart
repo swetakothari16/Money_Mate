@@ -8,6 +8,7 @@ import '../../../../core/providers/preferences_provider.dart';
 import '../../../categories/providers/category_providers.dart';
 import '../../data/models/budget_model.dart';
 import '../../providers/budget_providers.dart';
+import '../../../../core/enums/expense_category.dart';
 
 class CategoryBudgetBottomSheet extends ConsumerStatefulWidget {
   const CategoryBudgetBottomSheet({super.key});
@@ -152,16 +153,18 @@ class _CategoryBudgetBottomSheetState extends ConsumerState<CategoryBudgetBottom
         );
 
         if (val > 0) {
+          final categoryLabel = category.isCustom ? category.name : ExpenseCategory.getLabel(category.name);
           if (existing == null) {
             await notifier.addBudget(
-              name: '${category.name} Budget',
+              name: '$categoryLabel Budget',
               limitAmount: val,
               period: _selectedPeriod,
               category: category.name,
               startDate: startDate,
               endDate: endDate,
             );
-          } else if (existing.limitAmount != val || !existing.isActive) {
+          } else if (existing.limitAmount != val || !existing.isActive || existing.name != '$categoryLabel Budget') {
+            existing.name = '$categoryLabel Budget';
             existing.limitAmount = val;
             existing.startDate = startDate;
             existing.endDate = endDate;
@@ -351,7 +354,7 @@ class _CategoryBudgetBottomSheetState extends ConsumerState<CategoryBudgetBottom
                                 return Padding(
                                   padding: const EdgeInsets.only(bottom: 12),
                                   child: _buildBudgetRow(
-                                    title: category.name,
+                                    title: category.isCustom ? category.name : ExpenseCategory.getLabel(category.name),
                                     icon: icon,
                                     color: color,
                                     controller: controller ?? TextEditingController(),

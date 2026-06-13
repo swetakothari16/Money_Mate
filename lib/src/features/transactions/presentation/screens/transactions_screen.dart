@@ -13,6 +13,7 @@ import '../../../../shared/widgets/glass_card.dart';
 import '../../../expenses/data/models/expense_model.dart';
 import '../../../expenses/providers/expense_providers.dart';
 import '../../../categories/providers/category_providers.dart';
+import '../../../../core/enums/expense_category.dart';
 
 class TransactionsScreen extends ConsumerStatefulWidget {
   const TransactionsScreen({super.key});
@@ -96,6 +97,11 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                 ref.read(expenseDateRangeProvider.notifier).state = null;
               },
             ),
+          IconButton(
+            icon: const Icon(Icons.calendar_today_rounded),
+            tooltip: 'Calendar View',
+            onPressed: () => context.push(AppRoutes.calendar),
+          ),
           IconButton(
             icon: const Icon(Icons.upload_file_rounded),
             tooltip: 'Import Statement',
@@ -462,7 +468,7 @@ class _DismissibleTransactionTile extends ConsumerWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      expense.category,
+                      ExpenseCategory.getLabel(expense.category),
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurface.withOpacity(0.5),
                       ),
@@ -639,7 +645,7 @@ class _FilterBottomSheet extends ConsumerWidget {
                     final color = AppColors.categoryColors[category.colorIndex % AppColors.categoryColors.length];
 
                     return ChoiceChip(
-                      label: Text(category.name),
+                      label: Text(category.isCustom ? category.name : ExpenseCategory.getLabel(category.name)),
                       selected: isSelected,
                       onSelected: (selected) {
                         ref.read(expenseCategoryFilterProvider.notifier).state =

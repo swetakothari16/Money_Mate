@@ -10,10 +10,12 @@ import '../../core/database/isar_service.dart';
 import '../../features/expenses/data/models/expense_model.dart';
 import '../../features/categories/data/models/category_model.dart';
 import '../../features/budgets/data/models/budget_model.dart';
+import '../providers/preferences_provider.dart';
 
 /// Service managing offline-first data synchronization between local Isar DB and Cloud Firestore.
 class SyncService {
   final Isar _isar;
+  final Ref _ref;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
@@ -24,7 +26,7 @@ class SyncService {
 
   bool _isSyncingFromCloud = false;
 
-  SyncService(this._isar);
+  SyncService(this._isar, this._ref);
 
   /// Initialize Firebase authentication and start bidirectional sync.
   Future<void> initializeSync() async {
@@ -67,13 +69,56 @@ class SyncService {
       // 3. Update current active UID
       _currentUid = uid;
 
+      // Restore user profile details (Name, Currency)
+      if (!user.isAnonymous) {
+        await restoreUserProfile(uid);
+      }
+
       // 4. Pull down cloud data for this user
       await syncFromCloud(uid);
 
       // 5. Start watchers
       _listenToCloudChanges(uid);
       _listenToLocalChanges(uid);
+    }, onError: (error) {
+      debugPrint('SyncService: Auth state stream error: $error');
     });
+  }
+
+  /// Fetch user profile details from Firestore and restore them locally
+  Future<void> restoreUserProfile(String uid) async {
+    try {
+      final doc = await _firestore.collection('users').doc(uid).get();
+      if (doc.exists) {
+        final data = doc.data();
+        if (data != null) {
+          final name = data['name'] as String?;
+          final currencyCode = data['currencyCode'] as String?;
+          final currencySymbol = data['currencySymbol'] as String?;
+          final hasCompleted = data['hasCompletedOnboarding'] as bool? ?? false;
+
+          final prefs = _ref.read(sharedPreferencesProvider);
+          if (name != null) {
+            await prefs.setString('userName_$uid', name);
+            _ref.read(userNameProvider.notifier).updateState(name);
+          }
+          if (currencyCode != null) {
+            await prefs.setString('userCurrencyCode_$uid', currencyCode);
+            _ref.read(currencyCodeProvider.notifier).updateState(currencyCode);
+          }
+          if (currencySymbol != null) {
+            await prefs.setString('userCurrencySymbol_$uid', currencySymbol);
+            _ref.read(currencySymbolProvider.notifier).updateState(currencySymbol);
+          }
+          if (hasCompleted) {
+            await prefs.setBool('hasCompletedOnboarding_$uid', true);
+            _ref.read(onboardingProvider.notifier).updateState(true);
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('SyncService: Error restoring user profile: $e');
+    }
   }
 
   /// Push all local records to the new user's Firestore path.
@@ -203,6 +248,8 @@ class SyncService {
       } finally {
         _isSyncingFromCloud = false;
       }
+    }, onError: (error) {
+      debugPrint('SyncService: Firestore snapshot stream error: $error');
     });
   }
 
@@ -240,6 +287,8 @@ class SyncService {
       } catch (e) {
         debugPrint('SyncService: Error syncing local changes to Cloud: $e');
       }
+    }, onError: (error) {
+      debugPrint('SyncService: Isar local changes stream error: $error');
     });
   }
 
@@ -254,7 +303,7 @@ class SyncService {
 /// Provider for SyncService
 final syncServiceProvider = Provider<SyncService>((ref) {
   final isar = ref.watch(isarProvider);
-  final syncService = SyncService(isar);
+  final syncService = SyncService(isar, ref);
 
   // Start synchronization
   syncService.initializeSync();

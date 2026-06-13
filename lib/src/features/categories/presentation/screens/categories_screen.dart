@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
+ 
 import '../../../../core/enums/expense_category.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_dimens.dart';
 import '../../../../core/utils/icon_mapper.dart';
 import '../../providers/category_providers.dart';
+import '../../../../core/providers/preferences_provider.dart';
 
 class CategoriesScreen extends ConsumerStatefulWidget {
   const CategoriesScreen({super.key});
@@ -165,7 +166,7 @@ class _CategoryListTab extends ConsumerWidget {
                   child: Icon(icon, size: 22, color: color),
                 ),
                 title: Text(
-                  category.name,
+                  category.isCustom ? category.name : ExpenseCategory.getLabel(category.name),
                   style: theme.textTheme.bodyLarge?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
@@ -176,26 +177,11 @@ class _CategoryListTab extends ConsumerWidget {
                     color: theme.colorScheme.onSurface.withOpacity(0.5),
                   ),
                 ),
-                trailing: category.isCustom
-                    ? IconButton(
-                        icon: const Icon(Icons.delete_outline_rounded),
-                        color: theme.colorScheme.error,
-                        onPressed: () => _confirmDelete(context, ref, category),
-                      )
-                    : Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.onSurface.withOpacity(0.05),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          'Locked',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: theme.colorScheme.onSurface.withOpacity(0.4),
-                            fontSize: 10,
-                          ),
-                        ),
-                      ),
+                trailing: IconButton(
+                  icon: const Icon(Icons.delete_outline_rounded),
+                  color: theme.colorScheme.error,
+                  onPressed: () => _confirmDelete(context, ref, category),
+                ),
               ),
             );
           },
@@ -208,11 +194,12 @@ class _CategoryListTab extends ConsumerWidget {
 
   void _confirmDelete(BuildContext context, WidgetRef ref, CategoryItem category) async {
     final theme = Theme.of(context);
+    final displayName = category.isCustom ? category.name : ExpenseCategory.getLabel(category.name);
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Category'),
-        content: Text('Are you sure you want to delete "${category.name}"? Transactions using this category will fallback to default settings.'),
+        content: Text('Are you sure you want to delete "$displayName"? Transactions using this category will fallback to default settings.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -226,8 +213,12 @@ class _CategoryListTab extends ConsumerWidget {
       ),
     );
 
-    if (confirm == true && category.customCategoryId != null) {
-      await ref.read(categoryListProvider.notifier).deleteCategory(category.customCategoryId!);
+    if (confirm == true) {
+      if (category.isCustom && category.customCategoryId != null) {
+        await ref.read(categoryListProvider.notifier).deleteCategory(category.customCategoryId!);
+      } else {
+        await ref.read(deletedSystemCategoriesProvider.notifier).deleteSystemCategory(category.name);
+      }
     }
   }
 }

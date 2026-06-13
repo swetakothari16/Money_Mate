@@ -160,11 +160,15 @@ class SettingsScreen extends ConsumerWidget {
                       );
                       if (confirm == true) {
                         // Reset preferences
-                        final prefs = ref.read(sharedPreferencesProvider);
-                        await prefs.remove('userName');
-                        await prefs.remove('userCurrencyCode');
-                        await prefs.remove('userCurrencySymbol');
-                        await prefs.remove('hasCompletedOnboarding');
+                        final uid = ref.read(authRepositoryProvider).currentUser?.uid;
+                        if (uid != null) {
+                          final prefs = ref.read(sharedPreferencesProvider);
+                          await prefs.remove('userName_$uid');
+                          await prefs.remove('userCurrencyCode_$uid');
+                          await prefs.remove('userCurrencySymbol_$uid');
+                          await prefs.remove('hasCompletedOnboarding_$uid');
+                          await prefs.remove('deletedSystemCategories_$uid');
+                        }
                         // Set default currency symbol back
                         CurrencyFormatter.updateCurrencySymbol('₹');
 

@@ -27,14 +27,16 @@ class AppShell extends StatelessWidget {
 
     return Scaffold(
       body: child,
-      floatingActionButton: FloatingActionButton(
-        heroTag: 'addExpense',
-        onPressed: () => context.push(AppRoutes.addExpense),
-        child: const Icon(Icons.add_rounded, size: 28),
-      ).animate().scale(
-            duration: 400.ms,
-            curve: Curves.elasticOut,
-          ),
+      floatingActionButton: currentIndex == 1
+          ? FloatingActionButton(
+              heroTag: 'addExpense',
+              onPressed: () => context.push(AppRoutes.addExpense),
+              child: const Icon(Icons.add_rounded, size: 28),
+            ).animate().scale(
+                  duration: 400.ms,
+                  curve: Curves.elasticOut,
+                )
+          : null,
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           border: Border(

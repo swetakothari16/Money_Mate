@@ -1,9 +1,10 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
+ 
 import 'package:expense_partner/src/core/enums/expense_category.dart';
 import 'package:expense_partner/src/features/categories/data/models/category_model.dart';
 import 'package:expense_partner/src/features/categories/data/repositories/category_repository.dart';
+import 'package:expense_partner/src/core/providers/preferences_provider.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CUSTOM CATEGORY LIST PROVIDER
@@ -107,41 +108,47 @@ class CategoryItem {
 /// Provides all expense categories (predefined + custom) for the picker.
 final allExpenseCategoriesProvider = Provider<AsyncValue<List<CategoryItem>>>((ref) {
   final customCategoriesAsync = ref.watch(categoryListProvider);
-
+  final deletedSystemCategories = ref.watch(deletedSystemCategoriesProvider);
+ 
   return customCategoriesAsync.whenData((customCategories) {
     final items = <CategoryItem>[];
-
+ 
     // Add predefined expense categories
     for (final category in ExpenseCategory.expenseCategories) {
-      items.add(CategoryItem.fromEnum(category));
+      if (!deletedSystemCategories.contains(category.name)) {
+        items.add(CategoryItem.fromEnum(category));
+      }
     }
-
+ 
     // Add custom expense categories
     for (final custom in customCategories.where((c) => !c.isIncome)) {
       items.add(CategoryItem.fromModel(custom));
     }
-
+ 
     return items;
   });
 });
-
+ 
 /// Provides all income categories (predefined + custom) for the picker.
 final allIncomeCategoriesProvider = Provider<AsyncValue<List<CategoryItem>>>((ref) {
   final customCategoriesAsync = ref.watch(categoryListProvider);
-
+  final deletedSystemCategories = ref.watch(deletedSystemCategoriesProvider);
+ 
   return customCategoriesAsync.whenData((customCategories) {
     final items = <CategoryItem>[];
-
+ 
     // Add predefined income categories
     for (final category in ExpenseCategory.incomeCategories) {
-      items.add(CategoryItem.fromEnum(category));
+      if (!deletedSystemCategories.contains(category.name)) {
+        items.add(CategoryItem.fromEnum(category));
+      }
     }
-
+ 
     // Add custom income categories
     for (final custom in customCategories.where((c) => c.isIncome)) {
       items.add(CategoryItem.fromModel(custom));
     }
-
+ 
     return items;
   });
 });

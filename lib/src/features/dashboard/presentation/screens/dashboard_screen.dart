@@ -14,6 +14,7 @@ import '../../../expenses/providers/expense_providers.dart';
 import '../../../budgets/data/models/budget_model.dart';
 import '../../../budgets/providers/budget_providers.dart';
 import '../../../../core/utils/icon_mapper.dart';
+import '../../../../core/enums/expense_category.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -77,21 +78,7 @@ class DashboardScreen extends ConsumerWidget {
                             ],
                           ),
                           IconButton(
-                            onPressed: () async {
-                              final currentRange = ref.read(expenseDateRangeProvider);
-                              final picked = await showDateRangePicker(
-                                context: context,
-                                firstDate: DateTime(2000),
-                                lastDate: DateTime(2101),
-                                initialDateRange: currentRange,
-                              );
-                              if (picked != null) {
-                                ref.read(expenseDateRangeProvider.notifier).state = picked;
-                                if (context.mounted) {
-                                  context.go(AppRoutes.transactions);
-                                }
-                              }
-                            },
+                            onPressed: () => context.push(AppRoutes.calendar),
                             icon: Container(
                               padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
@@ -302,8 +289,12 @@ class DashboardScreen extends ConsumerWidget {
       progress = overallMonthlyStatus.progress;
       budgetName = overallMonthlyStatus.budget.name;
     } else {
-      budgetLimit = 50000.0;
-      spentAmount = currentMonthSpending;
+      final monthlyCategoryStatuses = statuses.where(
+        (status) => status.budget.category != null && status.budget.period == BudgetPeriod.monthly,
+      ).toList();
+      
+      budgetLimit = monthlyCategoryStatuses.fold(0.0, (sum, s) => sum + s.budget.limitAmount);
+      spentAmount = monthlyCategoryStatuses.fold(0.0, (sum, s) => sum + s.spentAmount);
       remainingAmount = budgetLimit - spentAmount;
       progress = budgetLimit > 0 ? (spentAmount / budgetLimit) : 0.0;
       budgetName = 'Monthly Budget';
@@ -611,7 +602,7 @@ class _TransactionTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    expense.category,
+                    ExpenseCategory.getLabel(expense.category),
                     style: theme.textTheme.bodySmall,
                   ),
                 ],

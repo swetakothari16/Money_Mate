@@ -75,4 +75,14 @@ enum ExpenseCategory {
         refund,
         other,
       ];
+
+  /// Returns the human-readable display label for a given category name.
+  static String getLabel(String name) {
+    for (final category in values) {
+      if (category.name == name) {
+        return category.label;
+      }
+    }
+    return name;
+  }
 }

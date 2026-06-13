@@ -8,6 +8,7 @@ import '../../data/models/budget_model.dart';
 import '../../providers/budget_providers.dart';
 import '../../../categories/providers/category_providers.dart';
 import '../../../../core/utils/icon_mapper.dart';
+import '../../../../core/enums/expense_category.dart';
 
 class AddBudgetScreen extends ConsumerStatefulWidget {
   const AddBudgetScreen({super.key});
@@ -94,8 +95,9 @@ class _AddBudgetScreenState extends ConsumerState<AddBudgetScreen> {
                             onTap: () {
                               setState(() {
                                 _selectedCategory = category;
+                                final categoryLabel = category.isCustom ? category.name : ExpenseCategory.getLabel(category.name);
                                 if (_nameController.text.isEmpty || _nameController.text.startsWith('Overall')) {
-                                  _nameController.text = '${category.name} Budget';
+                                  _nameController.text = '$categoryLabel Budget';
                                 }
                               });
                               Navigator.pop(context);
@@ -120,7 +122,7 @@ class _AddBudgetScreenState extends ConsumerState<AddBudgetScreen> {
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
-                                    category.name,
+                                    category.isCustom ? category.name : ExpenseCategory.getLabel(category.name),
                                     style: Theme.of(context).textTheme.labelSmall,
                                     textAlign: TextAlign.center,
                                     maxLines: 1,
@@ -339,7 +341,11 @@ class _AddBudgetScreenState extends ConsumerState<AddBudgetScreen> {
                         color: AppColors.categoryColors[_selectedCategory!.colorIndex % AppColors.categoryColors.length],
                       ),
                 title: Text(
-                  _selectedCategory?.name ?? 'Overall Budget',
+                  _selectedCategory == null
+                      ? 'Overall Budget'
+                      : (_selectedCategory!.isCustom
+                          ? _selectedCategory!.name
+                          : ExpenseCategory.getLabel(_selectedCategory!.name)),
                   style: theme.textTheme.bodyMedium?.copyWith(
                     fontWeight: _selectedCategory == null ? FontWeight.w600 : null,
                   ),

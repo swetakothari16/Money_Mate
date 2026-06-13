@@ -14,6 +14,7 @@ import '../../providers/budget_providers.dart';
 import '../widgets/category_budget_bottom_sheet.dart';
 import '../../../../core/utils/icon_mapper.dart';
 import '../../../categories/providers/category_providers.dart';
+import '../../../../core/enums/expense_category.dart';
 
 class BudgetsScreen extends ConsumerStatefulWidget {
   const BudgetsScreen({super.key});
@@ -168,12 +169,17 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
         ? AppColors.expense
         : (status.isNearThreshold ? Colors.orange : AppColors.income);
 
+    final displayName = budget.category != null
+        ? '${ExpenseCategory.getLabel(budget.category!)} Budget'
+        : budget.name;
+
     return GlassCard(
       padding: const EdgeInsets.all(AppDimens.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
                 padding: const EdgeInsets.all(8),
@@ -189,24 +195,26 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      budget.name,
+                      displayName,
                       style: theme.textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
                     ),
+                    const SizedBox(height: 2),
                     Text(
                       isCategoryOverall ? 'Overall budget limit' : 'Category budget limit',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurface.withOpacity(0.4),
                       ),
                     ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '${CurrencyFormatter.format(status.spentAmount)} / ${CurrencyFormatter.format(budget.limitAmount)}',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ],
-                ),
-              ),
-              Text(
-                '${CurrencyFormatter.formatCompact(status.spentAmount)} / ${CurrencyFormatter.formatCompact(budget.limitAmount)}',
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
                 ),
               ),
               const SizedBox(width: 4),
@@ -309,7 +317,9 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
     required String currencySymbol,
     required ThemeData theme,
   }) {
-    final displayName = categoryName ?? 'Overall Budget';
+    final displayName = categoryName != null
+        ? ExpenseCategory.getLabel(categoryName)
+        : 'Overall Budget';
 
     return GlassCard(
       padding: const EdgeInsets.all(AppDimens.md),
@@ -494,7 +504,10 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
                     ),
                   );
 
-                  // 2. Category list rows one by one
+                  // 2. Separate active/filled category budgets from unset category budgets
+                  final activeCategoryCards = <Widget>[];
+                  final unsetCategoryCards = <Widget>[];
+
                   for (int i = 0; i < categories.length; i++) {
                     final category = categories[i];
                     final categoryColor = AppColors.categoryColors[i % AppColors.categoryColors.length];
@@ -505,9 +518,8 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
                           orElse: () => null,
                         );
 
-                    Widget card;
                     if (status != null) {
-                      card = _buildActiveBudgetCard(
+                      final card = _buildActiveBudgetCard(
                         context: context,
                         status: status,
                         color: categoryColor,
@@ -515,8 +527,9 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
                         currencySymbol: currencySymbol,
                         theme: theme,
                       );
+                      activeCategoryCards.add(card);
                     } else {
-                      card = _buildUnsetBudgetCard(
+                      final card = _buildUnsetBudgetCard(
                         context: context,
                         categoryName: category.name,
                         color: categoryColor,
@@ -524,13 +537,26 @@ class _BudgetsScreenState extends ConsumerState<BudgetsScreen> {
                         currencySymbol: currencySymbol,
                         theme: theme,
                       );
+                      unsetCategoryCards.add(card);
                     }
+                  }
 
+                  // Add active/filled budgets to list children first
+                  for (int i = 0; i < activeCategoryCards.length; i++) {
                     listChildren.add(
-                      card.animate().fadeIn(delay: (200 + (i * 30)).ms).slideY(begin: 0.05, duration: 300.ms),
+                      activeCategoryCards[i].animate().fadeIn(delay: (200 + (i * 30)).ms).slideY(begin: 0.05, duration: 300.ms),
                     );
+                    if (i < activeCategoryCards.length - 1 || unsetCategoryCards.isNotEmpty) {
+                      listChildren.add(const SizedBox(height: 12));
+                    }
+                  }
 
-                    if (i < categories.length - 1) {
+                  // Add unset category budgets next
+                  for (int i = 0; i < unsetCategoryCards.length; i++) {
+                    listChildren.add(
+                      unsetCategoryCards[i].animate().fadeIn(delay: (200 + ((activeCategoryCards.length + i) * 30)).ms).slideY(begin: 0.05, duration: 300.ms),
+                    );
+                    if (i < unsetCategoryCards.length - 1) {
                       listChildren.add(const SizedBox(height: 12));
                     }
                   }

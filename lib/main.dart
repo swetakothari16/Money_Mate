@@ -5,6 +5,7 @@ import 'package:path_provider/path_provider.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import 'src/app.dart';
 import 'src/core/database/isar_service.dart';
@@ -35,7 +36,10 @@ void main() async {
   final prefs = await SharedPreferences.getInstance();
 
   // Initialize CurrencyFormatter with saved symbol on startup
-  final savedSymbol = prefs.getString('userCurrencySymbol') ?? '₹';
+  final currentUser = FirebaseAuth.instance.currentUser;
+  final savedSymbol = currentUser != null
+      ? (prefs.getString('userCurrencySymbol_${currentUser.uid}') ?? '₹')
+      : (prefs.getString('userCurrencySymbol') ?? '₹');
   CurrencyFormatter.updateCurrencySymbol(savedSymbol);
 
   runApp(
