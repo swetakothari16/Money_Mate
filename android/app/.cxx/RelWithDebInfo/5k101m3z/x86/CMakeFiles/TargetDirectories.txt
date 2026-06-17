@@ -1,0 +1,2 @@
+D:/sweta/Money_Mate/android/app/.cxx/RelWithDebInfo/5k101m3z/x86/CMakeFiles/edit_cache.dir
+D:/sweta/Money_Mate/android/app/.cxx/RelWithDebInfo/5k101m3z/x86/CMakeFiles/rebuild_cache.dir

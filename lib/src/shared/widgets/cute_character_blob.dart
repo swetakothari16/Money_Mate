@@ -14,6 +14,7 @@ class CuteCharacterBlob extends StatelessWidget {
   final double limit;
   final double size;
   final bool animate;
+  final bool useMiniBlob;
 
   const CuteCharacterBlob({
     super.key,
@@ -21,6 +22,7 @@ class CuteCharacterBlob extends StatelessWidget {
     required this.limit,
     this.size = 40.0,
     this.animate = true,
+    this.useMiniBlob = false,
   });
 
   SpendLevel get spendLevel {
@@ -57,14 +59,39 @@ class CuteCharacterBlob extends StatelessWidget {
         endColor = const Color(0xFFEF4444);   // Rose/Red
     }
 
-    Widget blobWidget = CustomPaint(
-      size: Size(size, size),
-      painter: _CuteBlobPainter(
-        level: level,
-        bodyColorStart: startColor,
-        bodyColorEnd: endColor,
-      ),
-    );
+    Widget blobWidget = useMiniBlob
+        ? CustomPaint(
+            size: Size(size, size),
+            painter: _CuteBlobPainter(
+              level: level,
+              bodyColorStart: startColor,
+              bodyColorEnd: endColor,
+            ),
+          )
+        : Container(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: endColor,
+                width: math.max(1.5, size * 0.05),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: startColor.withOpacity(0.35),
+                  blurRadius: size * 0.12,
+                  spreadRadius: size * 0.02,
+                ),
+              ],
+            ),
+            child: ClipOval(
+              child: Image.asset(
+                'assets/images/chibi_character.png',
+                fit: BoxFit.cover,
+              ),
+            ),
+          );
 
     // Apply specific animations to each character type if enabled
     if (animate) {

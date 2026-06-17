@@ -53,3 +53,8 @@ Thumbs.db
 
 # Temp duplicate folder
 Money_Mate/
+
+# Private signing keys & configuration
+android/key.properties
+*.jks
+*.keystore

@@ -21,19 +21,24 @@ tasks.register<Delete>("clean") {
 }
 
 subprojects {
-    val configureNamespace = {
+    val configureAndroid = {
         if (plugins.hasPlugin("com.android.application") || plugins.hasPlugin("com.android.library")) {
             val android = extensions.findByName("android") as? com.android.build.gradle.BaseExtension
             android?.apply {
                 if (namespace == null) {
                     namespace = if (project.group.toString().isNotEmpty()) project.group.toString() else "com.example.${project.name.replace("-", "_").replace(".", "_")}"
                 }
+                try {
+                    compileSdkVersion(35)
+                } catch (e: Exception) {
+                    // Ignore if configuration is already locked
+                }
             }
         }
     }
     if (state.executed) {
-        configureNamespace()
+        configureAndroid()
     } else {
-        afterEvaluate { configureNamespace() }
+        afterEvaluate { configureAndroid() }
     }
 }
