@@ -12,7 +12,7 @@ import 'package:expense_partner/src/core/providers/preferences_provider.dart';
 
 /// Manages user-created custom categories.
 class CategoryListNotifier extends AsyncNotifier<List<CategoryModel>> {
-  late final CategoryRepository _repository;
+  late CategoryRepository _repository;
   StreamSubscription<void>? _watchSubscription;
 
   @override

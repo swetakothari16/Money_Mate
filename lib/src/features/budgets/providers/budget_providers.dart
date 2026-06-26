@@ -12,7 +12,7 @@ import '../../expenses/data/models/expense_model.dart';
 
 /// Manages the list of all budgets with CRUD capabilities.
 class BudgetListNotifier extends AsyncNotifier<List<BudgetModel>> {
-  late final BudgetRepository _repository;
+  late BudgetRepository _repository;
   StreamSubscription<void>? _watchSubscription;
 
   @override

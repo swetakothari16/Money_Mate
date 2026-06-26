@@ -27,7 +27,7 @@ import '../data/repositories/expense_repository.dart';
 /// );
 /// ```
 class ExpenseListNotifier extends AsyncNotifier<List<ExpenseModel>> {
-  late final ExpenseRepository _repository;
+  late ExpenseRepository _repository;
   StreamSubscription<void>? _watchSubscription;
 
   @override

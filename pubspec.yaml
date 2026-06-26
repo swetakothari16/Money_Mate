@@ -46,6 +46,16 @@ dev_dependencies:
   build_runner: 2.4.13
   riverpod_generator: ^2.4.0
   isar_generator: ^3.1.0+1
+  flutter_launcher_icons: ^0.13.1
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path_android: "assets/icons/appicon_android.png"
+  image_path_ios: "assets/icons/appicon_ios.png"
+  adaptive_icon_background: "#0F172A"
+  adaptive_icon_foreground: "assets/icons/appicon_android.png"
+  remove_alpha_ios: true
 
 flutter:
   uses-material-design: true

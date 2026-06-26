@@ -18,6 +18,8 @@ import '../../../budgets/providers/budget_providers.dart';
 import '../../../../core/utils/icon_mapper.dart';
 import '../../../../core/enums/expense_category.dart';
 
+enum CalendarFilterType { expenses, income, total }
+
 class CalendarScreen extends ConsumerStatefulWidget {
   const CalendarScreen({super.key});
 
@@ -28,6 +30,23 @@ class CalendarScreen extends ConsumerStatefulWidget {
 class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   DateTime _currentMonth = DateTime.now();
   DateTime _selectedDate = DateTime.now();
+  CalendarFilterType _activeFilter = CalendarFilterType.expenses;
+
+  // Format cell values compactly and cleanly without currency symbols
+  String _formatCellAmount(double amount) {
+    final absAmount = amount.abs();
+    if (absAmount == 0) return '';
+    
+    if (absAmount >= 1000000) {
+      final value = absAmount / 1000000;
+      return '${amount < 0 ? '-' : ''}${value.toStringAsFixed(value % 1 == 0 ? 0 : 1)}M';
+    }
+    if (absAmount >= 1000) {
+      final value = absAmount / 1000;
+      return '${amount < 0 ? '-' : ''}${value.toStringAsFixed(value % 1 == 0 ? 0 : 1)}K';
+    }
+    return '${amount < 0 ? '-' : ''}${absAmount.toStringAsFixed(0)}';
+  }
 
   // Navigate to previous month
   void _prevMonth() {
@@ -87,17 +106,28 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
             
             final double dailyLimit = budgetLimit / daysInCurrentMonth;
 
-            // 1. Filter expenses for the current month being viewed
+            // 1. Filter expenses and incomes for the current month being viewed
             final monthlyExpenses = allExpenses.where((e) {
               return e.date.year == _currentMonth.year &&
                   e.date.month == _currentMonth.month &&
                   e.type == TransactionType.expense;
             }).toList();
 
-            // Aggregate spending amounts by day
+            final monthlyIncomes = allExpenses.where((e) {
+              return e.date.year == _currentMonth.year &&
+                  e.date.month == _currentMonth.month &&
+                  e.type == TransactionType.income;
+            }).toList();
+
+            // Aggregate spending and income amounts by day
             final dailySpending = <int, double>{};
             for (final exp in monthlyExpenses) {
               dailySpending[exp.date.day] = (dailySpending[exp.date.day] ?? 0.0) + exp.amount;
+            }
+
+            final dailyIncome = <int, double>{};
+            for (final inc in monthlyIncomes) {
+              dailyIncome[inc.date.day] = (dailyIncome[inc.date.day] ?? 0.0) + inc.amount;
             }
 
             // Calculate total spent in this month
@@ -123,6 +153,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                 date: DateTime(prevMonthDateTime.year, prevMonthDateTime.month, dayNum),
                 isCurrentMonth: false,
                 spendAmount: 0.0,
+                incomeAmount: 0.0,
               ));
             }
 
@@ -132,6 +163,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                 date: DateTime(_currentMonth.year, _currentMonth.month, day),
                 isCurrentMonth: true,
                 spendAmount: dailySpending[day] ?? 0.0,
+                incomeAmount: dailyIncome[day] ?? 0.0,
               ));
             }
 
@@ -144,6 +176,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                 date: DateTime(nextMonthDateTime.year, nextMonthDateTime.month, day),
                 isCurrentMonth: false,
                 spendAmount: 0.0,
+                incomeAmount: 0.0,
               ));
             }
 
@@ -154,8 +187,12 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                   e.date.day == _selectedDate.day;
             }).toList();
 
-            final double selectedDayTotal = selectedDayExpenses
+            final double selectedDayExpenseTotal = selectedDayExpenses
                 .where((e) => e.type == TransactionType.expense)
+                .fold(0.0, (sum, e) => sum + e.amount);
+
+            final double selectedDayIncomeTotal = selectedDayExpenses
+                .where((e) => e.type == TransactionType.income)
                 .fold(0.0, (sum, e) => sum + e.amount);
 
             // Compute category insights for this month
@@ -176,406 +213,292 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
               }
             }
 
+            // Group cells into weeks (7 days each)
+            final List<List<_CalendarDayItem>> weeks = [];
+            for (int i = 0; i < cells.length; i += 7) {
+              weeks.add(cells.sublist(i, i + 7));
+            }
+
             return Stack(
               children: [
                 CustomScrollView(
                   slivers: [
-                    // ─── Welcome Header ───────────────────────────────────────
+                    // ─── Top AppBar / Back Navigation ─────────────────────────
                     SliverToBoxAdapter(
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(AppDimens.lg, AppDimens.lg, AppDimens.lg, AppDimens.sm),
+                        padding: const EdgeInsets.fromLTRB(AppDimens.lg, AppDimens.md, AppDimens.lg, AppDimens.xs),
                         child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Row(
-                              children: [
-                                CircleAvatar(
-                                  radius: 20,
-                                  backgroundColor: theme.colorScheme.primary.withOpacity(0.15),
-                                  child: Text(
-                                    userName.isNotEmpty ? userName[0].toUpperCase() : 'S',
-                                    style: TextStyle(
-                                      color: theme.colorScheme.primary,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: AppDimens.md),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Welcome back,',
-                                      style: theme.textTheme.bodySmall?.copyWith(
-                                        color: theme.colorScheme.onSurface.withOpacity(0.55),
-                                      ),
-                                    ),
-                                    Text(
-                                      'Hello, $userName 👋',
-                                      style: theme.textTheme.titleMedium?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
                             IconButton(
                               onPressed: () {
-                                // Dynamic feature callback
+                                if (context.canPop()) {
+                                  context.pop();
+                                } else {
+                                  context.go(AppRoutes.dashboard);
+                                }
                               },
-                              icon: Container(
+                              icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                              iconSize: 18,
+                              color: theme.colorScheme.onSurface,
+                              style: IconButton.styleFrom(
+                                backgroundColor: isDark ? theme.colorScheme.surfaceContainerHighest : Colors.white,
                                 padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFE8F2FF),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  Icons.bolt_rounded,
-                                  color: Color(0xFF3B82F6),
-                                  size: 20,
-                                ),
+                                shadowColor: Colors.black.withOpacity(0.05),
+                                elevation: 1,
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Text(
+                              'Calendar',
+                              style: theme.textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: isDark ? Colors.white : const Color(0xFF111827),
                               ),
                             ),
                           ],
-                        ).animate().fadeIn(duration: 400.ms).slideY(begin: -0.05),
-                      ),
-                    ),
-
-                    // ─── Spent Summary Card ───────────────────────────────────
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: AppDimens.lg, vertical: AppDimens.sm),
-                        child: Container(
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(24),
-                            border: Border.all(
-                              color: isDark ? Colors.transparent : Colors.blue.withOpacity(0.05),
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.blue.withOpacity(0.025),
-                                blurRadius: 15,
-                                spreadRadius: 2,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Total Monthly Spent',
-                                style: theme.textTheme.labelMedium?.copyWith(
-                                  color: theme.colorScheme.onSurface.withOpacity(0.45),
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    CurrencyFormatter.format(totalMonthSpent),
-                                    style: theme.textTheme.headlineLarge?.copyWith(
-                                      fontWeight: FontWeight.w900,
-                                      color: const Color(0xFF111827),
-                                      letterSpacing: -0.5,
-                                    ),
-                                  ),
-                                  const Icon(
-                                    Icons.trending_up_rounded,
-                                    color: Color(0xFF111827),
-                                    size: 24,
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 20),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Container(
-                                      padding: const EdgeInsets.all(12),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFF3F4F6),
-                                        borderRadius: BorderRadius.circular(16),
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            children: const [
-                                              Icon(Icons.circle, color: Color(0xFF9CA3AF), size: 8),
-                                              SizedBox(width: 6),
-                                              Text(
-                                                'Budget',
-                                                style: TextStyle(
-                                                  color: Color(0xFF6B7280),
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            CurrencyFormatter.format(budgetLimit),
-                                            style: const TextStyle(
-                                              color: Color(0xFF111827),
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 14,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Container(
-                                      padding: const EdgeInsets.all(12),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(16),
-                                        border: Border.all(color: const Color(0xFFE5E7EB)),
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            children: const [
-                                              Icon(Icons.calendar_today_rounded, color: Color(0xFF111827), size: 10),
-                                              SizedBox(width: 6),
-                                              Text(
-                                                'Remaining',
-                                                style: TextStyle(
-                                                  color: Color(0xFF111827),
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            CurrencyFormatter.format(remainingAmount),
-                                            style: TextStyle(
-                                              color: remainingAmount >= 0 ? const Color(0xFF111827) : AppColors.expense,
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 14,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ).animate().fadeIn(duration: 500.ms, delay: 100.ms).slideY(begin: 0.05),
-                      ),
-                    ),
-
-                    // ─── Your Spending Calendar Header ────────────────────────
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(AppDimens.lg, AppDimens.lg, AppDimens.lg, AppDimens.sm),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                'Your Spending Calendar',
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: const Color(0xFF111827),
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            // Month Selector Pill
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF3F4F6),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Row(
-                                children: [
-                                  IconButton(
-                                    constraints: const BoxConstraints(),
-                                    padding: EdgeInsets.zero,
-                                    icon: const Icon(Icons.chevron_left_rounded, size: 20, color: Color(0xFF4B5563)),
-                                    onPressed: _prevMonth,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    DateFormat('MMM yyyy').format(_currentMonth),
-                                    style: const TextStyle(
-                                      color: Color(0xFF111827),
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  IconButton(
-                                    constraints: const BoxConstraints(),
-                                    padding: EdgeInsets.zero,
-                                    icon: const Icon(Icons.chevron_right_rounded, size: 20, color: Color(0xFF4B5563)),
-                                    onPressed: _nextMonth,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ).animate().fadeIn(duration: 400.ms, delay: 150.ms),
-                      ),
-                    ),
-
-                    // ─── Weekday Headers (Sunday First) ───────────────────────
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: AppDimens.lg, vertical: 4),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceAround,
-                          children: ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day) {
-                            return SizedBox(
-                              width: 44,
-                              child: Center(
-                                child: Text(
-                                  day,
-                                  style: TextStyle(
-                                    color: const Color(0xFF9CA3AF),
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ),
-                            );
-                          }).toList(),
-                        ).animate().fadeIn(duration: 400.ms, delay: 180.ms),
-                      ),
-                    ),
-
-                    // ─── Calendar Grid (Sunday First) ─────────────────────────
-                    SliverPadding(
-                      padding: const EdgeInsets.symmetric(horizontal: AppDimens.lg),
-                      sliver: SliverGrid(
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 7,
-                          mainAxisSpacing: 10,
-                          crossAxisSpacing: 10,
-                          childAspectRatio: 0.49, // Tall pill shape
                         ),
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) {
-                            final item = cells[index];
-                            final isSelected = item.date.year == _selectedDate.year &&
-                                item.date.month == _selectedDate.month &&
-                                item.date.day == _selectedDate.day;
+                      ),
+                    ),
 
-                            final isToday = item.date.year == DateTime.now().year &&
-                                item.date.month == DateTime.now().month &&
-                                item.date.day == DateTime.now().day;
+                    // ─── Cute Capitalized Split Layout Calendar ─────────────────
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: AppDimens.lg),
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            const leftSectionPadding = EdgeInsets.only(left: 12, right: 6, top: 16, bottom: 12);
+                            const rightSectionPadding = EdgeInsets.only(left: 6, right: 12, top: 16, bottom: 12);
 
-                            // Determine emoji based on daily spending
-                            String statusEmoji = '😴';
-                            if (item.spendAmount <= 0) {
-                              statusEmoji = '😴';
-                            } else if (item.spendAmount <= dailyLimit * 0.4) {
-                              statusEmoji = '😊';
-                            } else if (item.spendAmount <= dailyLimit * 0.9) {
-                              statusEmoji = '😐';
-                            } else {
-                              statusEmoji = '😱';
-                            }
-
-                            return GestureDetector(
-                              onTap: () {
-                                setState(() {
-                                  _selectedDate = item.date;
-                                  if (item.date.month != _currentMonth.month) {
-                                    _currentMonth = DateTime(item.date.year, item.date.month, 1);
-                                  }
-                                });
-                              },
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? const Color(0xFFE8F2FF)
-                                      : Colors.white,
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(
-                                    color: isSelected
-                                        ? const Color(0xFF3B82F6)
-                                        : isToday
-                                            ? const Color(0xFF93C5FD)
-                                            : const Color(0xFFE5E7EB),
-                                    width: isSelected ? 1.5 : 1.0,
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.015),
-                                      blurRadius: 4,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
+                            return Container(
+                              decoration: BoxDecoration(
+                                color: isDark ? theme.colorScheme.surfaceContainer : Colors.white,
+                                borderRadius: BorderRadius.circular(24),
+                                border: Border.all(
+                                  color: isDark ? Colors.grey[800]! : const Color(0xFFE5E7EB),
+                                  width: 1.0,
                                 ),
-                                padding: const EdgeInsets.symmetric(vertical: 4),
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    // Day number
-                                    Text(
-                                      item.date.day.toString(),
-                                      style: TextStyle(
-                                        fontWeight: isSelected || isToday ? FontWeight.bold : FontWeight.normal,
-                                        color: item.isCurrentMonth
-                                            ? const Color(0xFF111827)
-                                            : const Color(0xFFD1D5DB),
-                                        fontSize: 12,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.02),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Stack(
+                                children: [
+                                  // Background custom wavy split painter
+                                  Positioned.fill(
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(24),
+                                      child: CustomPaint(
+                                        painter: CalendarSplitBackgroundPainter(isDark: isDark),
                                       ),
                                     ),
+                                  ),
 
-                                    // Emoji status face
-                                    Opacity(
-                                      opacity: item.isCurrentMonth ? 1.0 : 0.35,
-                                      child: Text(
-                                        statusEmoji,
-                                        style: const TextStyle(fontSize: 16),
-                                      ),
-                                    ),
-
-                                    // Spent Amount
-                                    FittedBox(
-                                      fit: BoxFit.scaleDown,
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(horizontal: 2.0),
-                                        child: Text(
-                                          item.spendAmount > 0
-                                              ? '₹${CurrencyFormatter.formatCompact(item.spendAmount).replaceAll('₹', '')}'
-                                              : '₹0',
-                                          style: TextStyle(
-                                            fontSize: 9,
-                                            fontWeight: FontWeight.bold,
-                                            color: item.spendAmount > 0
-                                                ? (item.spendAmount > dailyLimit * 0.9 ? AppColors.expense : const Color(0xFF4B5563))
-                                                : const Color(0xFF9CA3AF),
-                                          ),
+                                  // Chibi watermark positioned behind the entire calendar
+                                  Positioned.fill(
+                                    top: 50,
+                                    bottom: 10,
+                                    child: IgnorePointer(
+                                      child: Opacity(
+                                        opacity: isDark ? 0.12 : 0.20,
+                                        child: Image.asset(
+                                          'assets/images/chibi_character.png',
+                                          fit: BoxFit.contain,
+                                          alignment: Alignment.center,
                                         ),
                                       ),
                                     ),
-                                  ],
-                                ),
+                                  ),
+
+                                  // Calendar Grid Content
+                                  Column(
+                                    children: [
+                                      // 1. Month / Year Header row
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            flex: 7,
+                                            child: Padding(
+                                              padding: leftSectionPadding,
+                                              child: Row(
+                                                children: [
+                                                  IconButton(
+                                                    constraints: const BoxConstraints(),
+                                                    padding: EdgeInsets.zero,
+                                                    icon: const Icon(Icons.chevron_left_rounded, color: Color(0xFFB91C1C), size: 28),
+                                                    onPressed: _prevMonth,
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  Text(
+                                                    DateFormat('MMMM').format(_currentMonth).toUpperCase(),
+                                                    style: const TextStyle(
+                                                      color: Color(0xFFB91C1C),
+                                                      fontWeight: FontWeight.w900,
+                                                      fontSize: 22,
+                                                      letterSpacing: 1.2,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  IconButton(
+                                                    constraints: const BoxConstraints(),
+                                                    padding: EdgeInsets.zero,
+                                                    icon: const Icon(Icons.chevron_right_rounded, color: Color(0xFFB91C1C), size: 28),
+                                                    onPressed: _nextMonth,
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                          Expanded(
+                                            flex: 3,
+                                            child: Padding(
+                                              padding: rightSectionPadding,
+                                              child: Center(
+                                                child: Text(
+                                                  DateFormat('yyyy').format(_currentMonth),
+                                                  style: const TextStyle(
+                                                    color: Color(0xFFB91C1C),
+                                                    fontWeight: FontWeight.w900,
+                                                    fontSize: 22,
+                                                    letterSpacing: 1.2,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+
+                                      const SizedBox(height: 8),
+
+                                      // 2. Weekday circle headers row
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            flex: 7,
+                                            child: Padding(
+                                              padding: leftSectionPadding.copyWith(top: 0, bottom: 0),
+                                              child: Row(
+                                                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                                                children: ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI'].map((day) {
+                                                  final isSunday = day == 'SUN';
+                                                  return Container(
+                                                    width: 32,
+                                                    height: 32,
+                                                    decoration: BoxDecoration(
+                                                      color: isSunday
+                                                          ? const Color(0xFFB91C1C)
+                                                          : (isDark ? const Color(0xFF854D0E) : const Color(0xFFFEF08A)),
+                                                      shape: BoxShape.circle,
+                                                    ),
+                                                    alignment: Alignment.center,
+                                                    child: Text(
+                                                      day,
+                                                      style: TextStyle(
+                                                        color: isSunday
+                                                            ? Colors.white
+                                                            : (isDark ? Colors.white : const Color(0xFF1E293B)),
+                                                        fontWeight: FontWeight.bold,
+                                                        fontSize: 8,
+                                                      ),
+                                                    ),
+                                                  );
+                                                }).toList(),
+                                              ),
+                                            ),
+                                          ),
+                                          Expanded(
+                                            flex: 3,
+                                            child: Padding(
+                                              padding: rightSectionPadding.copyWith(top: 0, bottom: 0),
+                                              child: Center(
+                                                child: Container(
+                                                  width: 32,
+                                                  height: 32,
+                                                  decoration: const BoxDecoration(
+                                                    color: Color(0xFFB91C1C),
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                  alignment: Alignment.center,
+                                                  child: const Text(
+                                                    'SAT',
+                                                    style: TextStyle(
+                                                      color: Colors.white,
+                                                      fontWeight: FontWeight.bold,
+                                                      fontSize: 8,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+
+                                      const SizedBox(height: 12),
+
+                                      // 3. Weeks rows
+                                      Padding(
+                                        padding: const EdgeInsets.only(bottom: 12),
+                                        child: Column(
+                                          children: weeks.map((week) {
+                                            final leftDays = week.sublist(0, 6);
+                                            final rightDay = week[6];
+
+                                            return Padding(
+                                              padding: const EdgeInsets.symmetric(vertical: 4),
+                                              child: Row(
+                                                children: [
+                                                  Expanded(
+                                                    flex: 7,
+                                                    child: Padding(
+                                                      padding: leftSectionPadding.copyWith(top: 0, bottom: 0),
+                                                      child: Row(
+                                                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                                                        children: leftDays.map((dayItem) {
+                                                          return Expanded(
+                                                            child: Padding(
+                                                              padding: const EdgeInsets.symmetric(horizontal: 2),
+                                                              child: _buildDayCell(context, dayItem),
+                                                            ),
+                                                          );
+                                                        }).toList(),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  Expanded(
+                                                    flex: 3,
+                                                    child: Padding(
+                                                      padding: rightSectionPadding.copyWith(top: 0, bottom: 0),
+                                                      child: Center(
+                                                        child: _buildDayCell(context, rightDay),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                          }).toList(),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ),
-                            ).animate().fadeIn(duration: 350.ms, delay: (100 + index * 5).ms);
+                            );
                           },
-                          childCount: cells.length,
                         ),
+                      ),
+                    ),
+
+                    // ─── Calendar Filter Segmented Control ──────────────────
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: AppDimens.lg, vertical: AppDimens.sm),
+                        child: _buildFilterTabs(context),
                       ),
                     ),
 
@@ -598,14 +521,14 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                                       DateFormat('MMMM d, yyyy').format(_selectedDate),
                                       style: theme.textTheme.titleMedium?.copyWith(
                                         fontWeight: FontWeight.bold,
-                                        color: const Color(0xFF111827),
+                                        color: isDark ? Colors.white : const Color(0xFF111827),
                                       ),
                                     ),
                                   ],
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  'Daily expenditure summary',
+                                  'Daily transaction summary',
                                   style: TextStyle(
                                     fontSize: 11,
                                     color: theme.colorScheme.onSurface.withOpacity(0.45),
@@ -614,24 +537,50 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                                 ),
                               ],
                             ),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
+                            Row(
                               children: [
-                                Text(
-                                  'Total Spent',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: theme.colorScheme.onSurface.withOpacity(0.45),
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(
+                                      'Income',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: theme.colorScheme.onSurface.withOpacity(0.45),
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    Text(
+                                      CurrencyFormatter.format(selectedDayIncomeTotal),
+                                      style: const TextStyle(
+                                        color: AppColors.income,
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                Text(
-                                  CurrencyFormatter.format(selectedDayTotal),
-                                  style: TextStyle(
-                                    color: selectedDayTotal > 0 ? AppColors.expense : const Color(0xFF9CA3AF),
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 15,
-                                  ),
+                                const SizedBox(width: 16),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(
+                                      'Expense',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: theme.colorScheme.onSurface.withOpacity(0.45),
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    Text(
+                                      CurrencyFormatter.format(selectedDayExpenseTotal),
+                                      style: TextStyle(
+                                        color: selectedDayExpenseTotal > 0 ? AppColors.expense : (isDark ? Colors.grey[500] : const Color(0xFF9CA3AF)),
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
@@ -648,16 +597,16 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: isDark ? theme.colorScheme.surfaceContainer : Colors.white,
                               borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: const Color(0xFFE5E7EB)),
+                              border: Border.all(color: isDark ? Colors.grey[800]! : const Color(0xFFE5E7EB)),
                             ),
                             child: Row(
                               children: [
                                 Container(
                                   padding: const EdgeInsets.all(10),
-                                  decoration: const BoxDecoration(
-                                    color: Color(0xFFECFDF5),
+                                  decoration: BoxDecoration(
+                                    color: isDark ? const Color(0x2210B981) : const Color(0xFFECFDF5),
                                     shape: BoxShape.circle,
                                   ),
                                   child: const Text('😴', style: TextStyle(fontSize: 22)),
@@ -667,12 +616,12 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      const Text(
+                                      Text(
                                         'A Perfect Saver Day!',
                                         style: TextStyle(
                                           fontWeight: FontWeight.bold,
                                           fontSize: 14,
-                                          color: Color(0xFF111827),
+                                          color: isDark ? Colors.white : const Color(0xFF111827),
                                         ),
                                       ),
                                       const SizedBox(height: 2),
@@ -741,9 +690,9 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                                 child: Container(
                                   padding: const EdgeInsets.all(12),
                                   decoration: BoxDecoration(
-                                    color: Colors.white,
+                                    color: isDark ? theme.colorScheme.surfaceContainer : Colors.white,
                                     borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                                    border: Border.all(color: isDark ? Colors.grey[800]! : const Color(0xFFE5E7EB)),
                                   ),
                                   child: Row(
                                     children: [
@@ -762,10 +711,10 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                                           children: [
                                             Text(
                                               expense.title,
-                                              style: const TextStyle(
+                                              style: TextStyle(
                                                 fontWeight: FontWeight.bold,
                                                 fontSize: 13,
-                                                color: Color(0xFF111827),
+                                                color: isDark ? Colors.white : const Color(0xFF111827),
                                               ),
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
@@ -775,14 +724,14 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                                             Container(
                                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                               decoration: BoxDecoration(
-                                                color: const Color(0xFFF3F4F6),
+                                                color: isDark ? theme.colorScheme.surfaceContainerHighest : const Color(0xFFF3F4F6),
                                                 borderRadius: BorderRadius.circular(6),
                                               ),
                                               child: Text(
                                                 ExpenseCategory.getLabel(expense.category),
-                                                style: const TextStyle(
+                                                style: TextStyle(
                                                   fontSize: 9,
-                                                  color: Color(0xFF4B5563),
+                                                  color: isDark ? Colors.grey[350] : const Color(0xFF4B5563),
                                                   fontWeight: FontWeight.bold,
                                                 ),
                                               ),
@@ -793,7 +742,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                                       Text(
                                         '${expense.type == TransactionType.income ? '+' : '-'}${CurrencyFormatter.format(expense.amount)}',
                                         style: TextStyle(
-                                          color: expense.type == TransactionType.income ? AppColors.income : const Color(0xFF111827),
+                                          color: expense.type == TransactionType.income ? AppColors.income : (isDark ? Colors.white : const Color(0xFF111827)),
                                           fontWeight: FontWeight.w800,
                                           fontSize: 13,
                                         ),
@@ -819,7 +768,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                               'Spending Insights',
                               style: theme.textTheme.titleMedium?.copyWith(
                                 fontWeight: FontWeight.bold,
-                                color: const Color(0xFF111827),
+                                color: isDark ? Colors.white : const Color(0xFF111827),
                               ),
                             ),
                             TextButton(
@@ -896,11 +845,14 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
 
                             // Dynamic style based on list position (Peach/Blue/Outline)
                             if (index == 0) {
-                              bgColor = const Color(0xFFFFEEEC);
+                              bgColor = isDark ? const Color(0x22EF4444) : const Color(0xFFFFEEEC);
                               borderColor = null;
                             } else if (index == 1) {
-                              bgColor = const Color(0xFFE8F2FF);
+                              bgColor = isDark ? const Color(0x223B82F6) : const Color(0xFFE8F2FF);
                               borderColor = null;
+                            } else {
+                              bgColor = isDark ? theme.colorScheme.surfaceContainer : Colors.white;
+                              borderColor = isDark ? Colors.grey[800] : const Color(0xFFE5E7EB);
                             }
 
                             return Container(
@@ -926,18 +878,18 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                                     children: [
                                       Text(
                                         categoryLabel,
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           fontSize: 10,
-                                          color: Color(0xFF4B5563),
+                                          color: isDark ? Colors.grey[400] : const Color(0xFF4B5563),
                                           fontWeight: FontWeight.bold,
                                         ),
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
                                         '₹${CurrencyFormatter.formatCompact(amount).replaceAll('₹', '')}',
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           fontSize: 13,
-                                          color: Color(0xFF111827),
+                                          color: isDark ? Colors.white : const Color(0xFF111827),
                                           fontWeight: FontWeight.w900,
                                         ),
                                       ),
@@ -958,7 +910,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                         child: Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFFF9E6), // Beige/Gold background
+                            color: isDark ? const Color(0xFF332B1E) : const Color(0xFFFFF9E6), // Beige/Gold background
                             borderRadius: BorderRadius.circular(24),
                           ),
                           child: Row(
@@ -966,8 +918,8 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                               Container(
                                 width: 56,
                                 height: 56,
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFFFFD970), // Circle color
+                                decoration: BoxDecoration(
+                                  color: isDark ? const Color(0xFFFFC043).withOpacity(0.2) : const Color(0xFFFFD970), // Circle color
                                   shape: BoxShape.circle,
                                 ),
                                 child: const Center(
@@ -980,15 +932,15 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Row(
-                                      children: const [
-                                        Text('😊', style: TextStyle(fontSize: 13)),
-                                        SizedBox(width: 4),
+                                      children: [
+                                        const Text('😊', style: TextStyle(fontSize: 13)),
+                                        const SizedBox(width: 4),
                                         Text(
                                           'Smart Saver',
                                           style: TextStyle(
                                             fontWeight: FontWeight.bold,
                                             fontSize: 12,
-                                            color: Color(0xFF78350F),
+                                            color: isDark ? const Color(0xFFFBBF24) : const Color(0xFF78350F),
                                           ),
                                         ),
                                       ],
@@ -996,9 +948,9 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                                     const SizedBox(height: 3),
                                     RichText(
                                       text: TextSpan(
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           fontSize: 11,
-                                          color: Color(0xFF92400E),
+                                          color: isDark ? const Color(0xFFFCD34D) : const Color(0xFF92400E),
                                           height: 1.35,
                                         ),
                                         children: [
@@ -1052,16 +1004,242 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
       ),
     );
   }
+
+  // Segmented switch selector for Expenses / Income / Total filters
+  Widget _buildFilterTabs(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      height: 40,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: isDark ? theme.colorScheme.surfaceContainerHighest : const Color(0xFFF3F4F6),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: CalendarFilterType.values.map((filter) {
+          final isSelected = _activeFilter == filter;
+          String label = '';
+          Color activeColor = theme.colorScheme.primary;
+
+          switch (filter) {
+            case CalendarFilterType.expenses:
+              label = 'Expenses';
+              activeColor = AppColors.expense;
+              break;
+            case CalendarFilterType.income:
+              label = 'Income';
+              activeColor = AppColors.income;
+              break;
+            case CalendarFilterType.total:
+              label = 'Total';
+              activeColor = AppColors.transfer;
+              break;
+          }
+
+          return Expanded(
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  _activeFilter = filter;
+                });
+              },
+              child: Container(
+                decoration: BoxDecoration(
+                  color: isSelected ? (isDark ? Colors.grey[800] : Colors.white) : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: isSelected
+                      ? [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]
+                      : null,
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    color: isSelected
+                        ? activeColor
+                        : (isDark ? Colors.grey[400] : const Color(0xFF4B5563)),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildDayCell(BuildContext context, _CalendarDayItem item) {
+    if (!item.isCurrentMonth) {
+      return const SizedBox(height: 55);
+    }
+
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final isSelected = item.date.year == _selectedDate.year &&
+        item.date.month == _selectedDate.month &&
+        item.date.day == _selectedDate.day;
+
+    final isToday = item.date.year == DateTime.now().year &&
+        item.date.month == DateTime.now().month &&
+        item.date.day == DateTime.now().day;
+
+    final isSunday = item.date.weekday == DateTime.sunday;
+    final isSaturday = item.date.weekday == DateTime.saturday;
+    final isWeekend = isSunday || isSaturday;
+
+    // Determine display amount and badge colors based on active filter
+    double displayAmount = 0.0;
+    Color badgeBgColor = Colors.transparent;
+    Color badgeTextColor = Colors.white;
+
+    if (_activeFilter == CalendarFilterType.expenses) {
+      displayAmount = item.spendAmount;
+      badgeBgColor = AppColors.expense;
+    } else if (_activeFilter == CalendarFilterType.income) {
+      displayAmount = item.incomeAmount;
+      badgeBgColor = AppColors.income;
+    } else {
+      displayAmount = item.netAmount;
+      if (displayAmount > 0) {
+        badgeBgColor = AppColors.income;
+      } else if (displayAmount < 0) {
+        badgeBgColor = AppColors.expense;
+      }
+    }
+
+    final cellBgColor = isSelected
+        ? (isDark ? theme.colorScheme.primary.withOpacity(0.15) : const Color(0xFFE8F2FF))
+        : Colors.transparent;
+
+    final cellBorderColor = isSelected
+        ? theme.colorScheme.primary
+        : isToday
+            ? theme.colorScheme.primary.withOpacity(0.5)
+            : Colors.transparent;
+
+    final dateColor = isWeekend
+        ? const Color(0xFFB91C1C) // Red for weekend date numbers
+        : (isDark ? Colors.white : const Color(0xFF111827));
+
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedDate = item.date;
+        });
+      },
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        height: 55,
+        decoration: BoxDecoration(
+          color: cellBgColor,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: cellBorderColor,
+            width: isSelected ? 1.5 : 1.0,
+          ),
+        ),
+        alignment: Alignment.center,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              item.date.day.toString(),
+              style: TextStyle(
+                fontWeight: isSelected || isToday ? FontWeight.bold : FontWeight.normal,
+                color: dateColor,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 4),
+            if (displayAmount != 0)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1.5),
+                decoration: BoxDecoration(
+                  color: badgeBgColor,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  _formatCellAmount(displayAmount),
+                  style: TextStyle(
+                    fontSize: 7.5,
+                    fontWeight: FontWeight.w800,
+                    color: badgeTextColor,
+                  ),
+                ),
+              )
+            else
+              const SizedBox(height: 11), // placeholder matching height of badge
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _CalendarDayItem {
   final DateTime date;
   final bool isCurrentMonth;
   final double spendAmount;
+  final double incomeAmount;
+
+  double get netAmount => incomeAmount - spendAmount;
 
   _CalendarDayItem({
     required this.date,
     required this.isCurrentMonth,
     required this.spendAmount,
+    required this.incomeAmount,
   });
+}
+
+class CalendarSplitBackgroundPainter extends CustomPainter {
+  final bool isDark;
+  CalendarSplitBackgroundPainter({required this.isDark});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paintLeft = Paint()
+      ..color = isDark ? const Color(0xFF1E293B) : Colors.white
+      ..style = PaintingStyle.fill;
+
+    final paintRight = Paint()
+      ..color = isDark ? const Color(0xFF2A3437) : const Color(0xFFD4E2E0)
+      ..style = PaintingStyle.fill;
+
+    // Draw left background
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), paintLeft);
+
+    // Draw right background with wavy left edge
+    final splitX = size.width * 7 / 10;
+    final path = Path();
+    path.moveTo(splitX, 0);
+
+    // Create a wavy line down to the bottom
+    for (double y = 0; y <= size.height; y += 10) {
+      // Deterministic sine/cosine wave pattern for wavy/hand-drawn look
+      final dx = math.sin(y * 0.04) * 2.5 + math.cos(y * 0.1) * 1.5;
+      path.lineTo(splitX + dx, y);
+    }
+    path.lineTo(size.width, size.height);
+    path.lineTo(size.width, 0);
+    path.close();
+
+    canvas.drawPath(path, paintRight);
+  }
+
+  @override
+  bool shouldRepaint(covariant CalendarSplitBackgroundPainter oldDelegate) {
+    return oldDelegate.isDark != isDark;
+  }
 }
