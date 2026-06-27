@@ -350,6 +350,128 @@ class StatementImportScreen extends ConsumerWidget {
             ],
           ),
         );
+
+      case StatementImportStatus.passwordRequired:
+        return PasswordPromptForm(
+          errorMessage: state.errorMessage,
+          onSubmit: (password) {
+            ref.read(statementImportProvider.notifier).parseWithPassword(password);
+          },
+          onCancel: () {
+            ref.read(statementImportProvider.notifier).reset();
+          },
+        );
     }
+  }
+}
+
+class PasswordPromptForm extends StatefulWidget {
+  final String? errorMessage;
+  final ValueChanged<String> onSubmit;
+  final VoidCallback onCancel;
+
+  const PasswordPromptForm({
+    super.key,
+    this.errorMessage,
+    required this.onSubmit,
+    required this.onCancel,
+  });
+
+  @override
+  State<PasswordPromptForm> createState() => _PasswordPromptFormState();
+}
+
+class _PasswordPromptFormState extends State<PasswordPromptForm> {
+  final _controller = TextEditingController();
+  bool _obscureText = true;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.all(AppDimens.xl),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Icon(
+            Icons.lock_outline_rounded,
+            size: 80,
+            color: theme.colorScheme.primary,
+          ).animate().scale(duration: 400.ms, curve: Curves.elasticOut),
+          const SizedBox(height: AppDimens.lg),
+          Text(
+            'Password Protected Statement',
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: AppDimens.md),
+          Container(
+            padding: const EdgeInsets.all(AppDimens.md),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primaryContainer.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+              border: Border.all(color: theme.colorScheme.primary.withOpacity(0.2)),
+            ),
+            child: Text(
+              widget.errorMessage ?? 'Please enter the password to open this statement.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onPrimaryContainer,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          const SizedBox(height: AppDimens.xl),
+          TextField(
+            controller: _controller,
+            obscureText: _obscureText,
+            decoration: InputDecoration(
+              labelText: 'Password',
+              hintText: 'Enter PDF password',
+              prefixIcon: const Icon(Icons.key_rounded),
+              suffixIcon: IconButton(
+                icon: Icon(_obscureText ? Icons.visibility_off_rounded : Icons.visibility_rounded),
+                onPressed: () => setState(() => _obscureText = !_obscureText),
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppDimens.xl),
+          FilledButton(
+            onPressed: () {
+              final password = _controller.text.trim();
+              if (password.isNotEmpty) {
+                widget.onSubmit(password);
+              }
+            },
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+              ),
+            ),
+            child: const Text(
+              'Unlock & Import',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          const SizedBox(height: AppDimens.md),
+          TextButton(
+            onPressed: widget.onCancel,
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
   }
 }

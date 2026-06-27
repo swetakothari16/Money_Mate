@@ -106,6 +106,12 @@ class RegExTransactionExtractorService implements TransactionExtractorService {
         continue;
       }
 
+      // Check if the line is a date range header by counting date patterns
+      if (_countDatesInLine(line, datePattern1, datePattern2, datePattern3, datePattern4) >= 2) {
+        i++;
+        continue;
+      }
+
       // We found a date. Determine if it is a Horizontal Row or a Vertical Grid cell.
       // If the line is long and contains a valid amount, treat it as a single Horizontal Row.
       final bool isHorizontal = line.length > 25 && amountPattern.hasMatch(line);
@@ -141,6 +147,19 @@ class RegExTransactionExtractorService implements TransactionExtractorService {
     }
 
     return transactions;
+  }
+
+  int _countDatesInLine(String line, RegExp p1, RegExp p2, RegExp p3, RegExp p4) {
+    final Set<String> matchedDates = {};
+    for (final p in [p1, p2, p3, p4]) {
+      for (final m in p.allMatches(line)) {
+        final dateStr = m.group(0);
+        if (dateStr != null) {
+          matchedDates.add(dateStr);
+        }
+      }
+    }
+    return matchedDates.length;
   }
 
   DateTime? _parseDate1(Match match) {
@@ -228,6 +247,10 @@ class RegExTransactionExtractorService implements TransactionExtractorService {
     if (isCredit) return;
 
     String remainingText = line.replaceFirst(matchedDateStr, '');
+    
+    // Remove leading cheque/ref numbers if present (common in horizontal layouts before narration)
+    remainingText = remainingText.replaceFirst(RegExp(r'^\s*\b\d{5,7}\b\s+'), '');
+    
     final List<String> numbers = amountPattern
         .allMatches(remainingText)
         .map((m) => m.group(0)!)
@@ -294,9 +317,39 @@ class RegExTransactionExtractorService implements TransactionExtractorService {
 
     if (isCredit) return;
 
-    // 2. Find amount numbers
+    // 2. Find Description/Merchant line
+    // It's the first candidate line that is not a type word, not a number, and not a time value.
+    final RegExp timePattern = RegExp(r'\b\d{1,2}:\d{2}(?::\d{2})?(?:\s*[aApP][mM])?\b');
+    String? rawMerchant;
+    int merchantIndex = -1;
+    for (int idx = 0; idx < candidates.length; idx++) {
+      final line = candidates[idx];
+      final lowerLine = line.toLowerCase();
+      final isType = lowerLine == 'debit' ||
+                     lowerLine == 'credit' ||
+                     lowerLine == 'dr' ||
+                     lowerLine == 'cr' ||
+                     lowerLine == 'type';
+      final isAmount = amountPattern.hasMatch(line) || line.contains('INR') || line.contains('Rs');
+      final isTime = timePattern.hasMatch(line);
+
+      if (!isType && !isAmount && !isTime &&
+          !lowerLine.contains('transaction id') &&
+          !lowerLine.contains('utr no') &&
+          !lowerLine.contains('debited from') &&
+          !lowerLine.contains('credited to')) {
+        rawMerchant = line;
+        merchantIndex = idx;
+        break;
+      }
+    }
+
+    if (rawMerchant == null || rawMerchant.trim().isEmpty || merchantIndex == -1) return;
+
+    // 3. Find amount numbers AFTER the description/merchant line
     final List<String> numbers = [];
-    for (final line in candidates) {
+    for (int idx = merchantIndex + 1; idx < candidates.length; idx++) {
+      final line = candidates[idx];
       final matches = amountPattern.allMatches(line).map((m) => m.group(0)!).toList();
       for (final numStr in matches) {
         final val = double.tryParse(numStr.replaceAll(',', ''));
@@ -311,32 +364,6 @@ class RegExTransactionExtractorService implements TransactionExtractorService {
     if (numbers.isEmpty) return;
     final double? amount = double.tryParse(numbers.first.replaceAll(',', ''));
     if (amount == null) return;
-
-    // 3. Find Description/Merchant line
-    // It's the first candidate line that is not a type word, not a number, and not a time value.
-    final RegExp timePattern = RegExp(r'\b\d{1,2}:\d{2}(?::\d{2})?(?:\s*[aApP][mM])?\b');
-    String? rawMerchant;
-    for (final line in candidates) {
-      final lowerLine = line.toLowerCase();
-      final isType = lowerLine == 'debit' ||
-                     lowerLine == 'credit' ||
-                     lowerLine == 'dr' ||
-                     lowerLine == 'cr' ||
-                     lowerLine == 'type';
-      final isAmount = numbers.contains(line) || line.contains('INR') || line.contains('Rs');
-      final isTime = timePattern.hasMatch(line);
-
-      if (!isType && !isAmount && !isTime &&
-          !lowerLine.contains('transaction id') &&
-          !lowerLine.contains('utr no') &&
-          !lowerLine.contains('debited from') &&
-          !lowerLine.contains('credited to')) {
-        rawMerchant = line;
-        break;
-      }
-    }
-
-    if (rawMerchant == null || rawMerchant.trim().isEmpty) return;
 
     final String merchant = _cleanMerchantName(rawMerchant);
     if (merchant.isEmpty) return;

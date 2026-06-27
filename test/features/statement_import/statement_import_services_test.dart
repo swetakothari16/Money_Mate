@@ -160,6 +160,38 @@ INR 160.00
       expect(txs[1].amount, equals(40.0));
       expect(txs[1].date, equals(DateTime(2026, 5, 6)));
     });
+
+    test('Should ignore date range headers', () {
+      const text = '''
+May 06, 2026 - Jun 05, 2026
+Transaction Statement
+May 07, 2026
+UPI SWIGGY
+Debit
+450.00
+24,550
+''';
+      final txs = extractor.extractTransactions(text);
+      expect(txs.length, equals(1));
+      expect(txs[0].merchant, equals('Swiggy'));
+      expect(txs[0].amount, equals(450.0));
+    });
+
+    test('Should ignore cheque numbers and parse correct amount', () {
+      const text = '''
+05/06/2026 353485 Zomato Media Pvt 349.00 DR 25432.10
+06/06/2026
+353486
+UBER INDIA RIDES
+Debit
+150.00
+25781.10
+''';
+      final txs = extractor.extractTransactions(text);
+      expect(txs.length, equals(2));
+      expect(txs[0].amount, equals(349.00));
+      expect(txs[1].amount, equals(150.00));
+    });
   });
 
   group('CategoryMappingService Tests', () {

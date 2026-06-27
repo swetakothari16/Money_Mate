@@ -22,6 +22,7 @@ enum StatementImportStatus {
   importing,
   success,
   error,
+  passwordRequired,
 }
 
 class StatementImportState {
@@ -30,6 +31,7 @@ class StatementImportState {
   final String? errorMessage;
   final String? fileName;
   final int importedCount;
+  final Uint8List? fileBytes;
 
   const StatementImportState({
     required this.status,
@@ -37,6 +39,7 @@ class StatementImportState {
     this.errorMessage,
     this.fileName,
     this.importedCount = 0,
+    this.fileBytes,
   });
 
   StatementImportState copyWith({
@@ -45,6 +48,7 @@ class StatementImportState {
     String? errorMessage,
     String? fileName,
     int? importedCount,
+    Uint8List? fileBytes,
   }) {
     return StatementImportState(
       status: status ?? this.status,
@@ -52,6 +56,7 @@ class StatementImportState {
       errorMessage: errorMessage ?? this.errorMessage,
       fileName: fileName ?? this.fileName,
       importedCount: importedCount ?? this.importedCount,
+      fileBytes: fileBytes ?? this.fileBytes,
     );
   }
 }
@@ -125,21 +130,61 @@ class StatementImportNotifier extends StateNotifier<StatementImportState> {
         throw const FormatException('Could not read file bytes.');
       }
 
+      state = state.copyWith(fileBytes: fileBytes, fileName: fileName);
+
       await _parsePdfBytes(fileBytes, fileName);
     } catch (e) {
-      state = state.copyWith(
-        status: StatementImportStatus.error,
-        errorMessage: e.toString(),
-      );
+      if (e.toString().contains('PASSWORD_REQUIRED')) {
+        state = state.copyWith(
+          status: StatementImportStatus.passwordRequired,
+          errorMessage: 'This statement is password protected. Please enter the password to open it.',
+        );
+      } else {
+        state = state.copyWith(
+          status: StatementImportStatus.error,
+          errorMessage: e.toString(),
+        );
+      }
     }
   }
 
-  // Parse direct bytes (used by both file picker and mock generator)
-  Future<void> _parsePdfBytes(Uint8List bytes, String name) async {
+  // Parse with password input
+  Future<void> parseWithPassword(String password) async {
+    final bytes = state.fileBytes;
+    final name = state.fileName;
+    if (bytes == null || name == null) {
+      state = state.copyWith(
+        status: StatementImportStatus.error,
+        errorMessage: 'No file bytes found in state to decrypt.',
+      );
+      return;
+    }
+
+    state = state.copyWith(status: StatementImportStatus.parsing);
+
+    try {
+      await _parsePdfBytes(bytes, name, password: password);
+    } catch (e) {
+      if (e.toString().contains('PASSWORD_REQUIRED')) {
+        state = state.copyWith(
+          status: StatementImportStatus.passwordRequired,
+          errorMessage: 'Incorrect password. Please try again.',
+        );
+      } else {
+        state = state.copyWith(
+          status: StatementImportStatus.error,
+          errorMessage: e.toString(),
+        );
+      }
+    }
+  }
+
+  // Parse direct bytes (used by both file picker, password retry, and mock generator)
+  Future<void> _parsePdfBytes(Uint8List bytes, String name, {String? password}) async {
     state = state.copyWith(status: StatementImportStatus.parsing, fileName: name);
 
     try {
-      final rawText = await _pdfParser.extractText(bytes);
+      final rawText = await _pdfParser.extractText(bytes, password: password);
       final rawTransactions = _extractor.extractTransactions(rawText);
 
       if (rawTransactions.isEmpty) {
@@ -159,6 +204,9 @@ class StatementImportNotifier extends StateNotifier<StatementImportState> {
         transactions: mappedTransactions,
       );
     } catch (e) {
+      if (e.toString().contains('PASSWORD_REQUIRED')) {
+        rethrow;
+      }
       state = state.copyWith(
         status: StatementImportStatus.error,
         errorMessage: e.toString(),
