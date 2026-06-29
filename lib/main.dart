@@ -35,8 +35,19 @@ void main() async {
   
   final prefs = await SharedPreferences.getInstance();
 
+  // Auto-login anonymously on first run if no user is currently authenticated
+  final auth = FirebaseAuth.instance;
+  if (auth.currentUser == null) {
+    try {
+      await auth.signInAnonymously();
+      debugPrint('Automatically signed in anonymously.');
+    } catch (e) {
+      debugPrint('Automatic anonymous sign-in failed: $e');
+    }
+  }
+
   // Initialize CurrencyFormatter with saved symbol on startup
-  final currentUser = FirebaseAuth.instance.currentUser;
+  final currentUser = auth.currentUser;
   final savedSymbol = currentUser != null
       ? (prefs.getString('userCurrencySymbol_${currentUser.uid}') ?? '₹')
       : (prefs.getString('userCurrencySymbol') ?? '₹');

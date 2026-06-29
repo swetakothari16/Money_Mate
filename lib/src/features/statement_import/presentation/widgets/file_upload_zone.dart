@@ -101,7 +101,45 @@ class FileUploadZone extends ConsumerWidget {
           
           // Test Utility Button
           OutlinedButton.icon(
-            onPressed: () => ref.read(statementImportProvider.notifier).generateAndParseMockStatement(),
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (dialogContext) {
+                  return AlertDialog(
+                    title: const Text('Select Mock Template'),
+                    content: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ListTile(
+                          leading: const Icon(Icons.account_balance_rounded),
+                          title: const Text('HDFC Bank Statement'),
+                          onTap: () {
+                            Navigator.pop(dialogContext);
+                            ref.read(statementImportProvider.notifier).generateAndParseMockStatement(template: 'hdfc');
+                          },
+                        ),
+                        ListTile(
+                          leading: const Icon(Icons.payment_rounded),
+                          title: const Text('PhonePe Statement'),
+                          onTap: () {
+                            Navigator.pop(dialogContext);
+                            ref.read(statementImportProvider.notifier).generateAndParseMockStatement(template: 'phonepe');
+                          },
+                        ),
+                        ListTile(
+                          leading: const Icon(Icons.payment_rounded),
+                          title: const Text('Google Pay Statement'),
+                          onTap: () {
+                            Navigator.pop(dialogContext);
+                            ref.read(statementImportProvider.notifier).generateAndParseMockStatement(template: 'googlepay');
+                          },
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              );
+            },
             icon: const Icon(Icons.science_outlined),
             label: const Text('Try with Mock Statement'),
             style: OutlinedButton.styleFrom(

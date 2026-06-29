@@ -234,7 +234,10 @@ class ParsedTransactionCard extends ConsumerWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
-                    Row(
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         Text(
                           DateFormat('MMM d, yyyy').format(transaction.date),
@@ -242,7 +245,6 @@ class ParsedTransactionCard extends ConsumerWidget {
                             color: theme.colorScheme.onSurface.withOpacity(0.4),
                           ),
                         ),
-                        const SizedBox(width: 8),
                         // Category Badge
                         InkWell(
                           onTap: () => _showCategorySelectorSheet(context, ref),
@@ -278,6 +280,7 @@ class ParsedTransactionCard extends ConsumerWidget {
                   ],
                 ),
               ),
+              const SizedBox(width: AppDimens.md),
 
               // 3. Amount and Actions
               Column(

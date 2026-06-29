@@ -215,13 +215,13 @@ class StatementImportNotifier extends StateNotifier<StatementImportState> {
   }
 
   // Generate a mock statement PDF to test without needing real files
-  Future<void> generateAndParseMockStatement() async {
-    state = state.copyWith(status: StatementImportStatus.parsing, fileName: 'mock_hdfc_statement.pdf');
+  Future<void> generateAndParseMockStatement({String template = 'hdfc'}) async {
+    final fileName = 'mock_${template}_statement.pdf';
+    state = state.copyWith(status: StatementImportStatus.parsing, fileName: fileName);
     
     try {
-      // Import syncfusion dynamic library inside helper method to avoid startup penalties.
-      final bytes = await _generateMockPdfBytes();
-      await _parsePdfBytes(bytes, 'mock_hdfc_statement.pdf');
+      final bytes = await _generateMockPdfBytes(template);
+      await _parsePdfBytes(bytes, fileName);
     } catch (e) {
       state = state.copyWith(
         status: StatementImportStatus.error,
@@ -230,13 +230,70 @@ class StatementImportNotifier extends StateNotifier<StatementImportState> {
     }
   }
 
-  Future<Uint8List> _generateMockPdfBytes() async {
+  Future<Uint8List> _generateMockPdfBytes(String template) async {
     final pdfDocument = orgPdf.PdfDocument();
     final page = pdfDocument.pages.add();
     final graphics = page.graphics;
     final font = orgPdf.PdfStandardFont(orgPdf.PdfFontFamily.helvetica, 10);
 
-    const text = '''
+    String text = '';
+    if (template == 'phonepe') {
+      text = '''
+PhonePe Transaction Statement
+Period: May 2026
+
+Jun 22, 2026
+07 00 Am
+Zomato
+Rs 4.00
+Rs 11,
+
+Jun 16, 2026
+06 53 Pm
+Uber Rides
+Rs 2.00
+Rs 20
+
+May 29, 2026
+06 55 Pm
+Swiggy Delivery
+Rs 3.00
+Rs 20
+''';
+    } else if (template == 'googlepay') {
+      text = '''
+Date & time          Transaction details                    Amount
+05 Mar, 2026         Paid to Google Play                    Rs 2
+01:01 AM             UPI Transaction ID: 884881450646
+                     Paid by IndusInd Bank 7541
+
+05 Mar, 2026         Received from Google Play              Rs 2
+01:01 AM             UPI Transaction ID: 884933900646
+                     Paid by IndusInd Bank 7541
+
+20 Apr, 2026         Received from Gurleen Kaur             Rs 438
+05:26 PM             UPI Transaction ID: 647633623111
+                     Paid by IndusInd Bank 7541
+
+29 Apr, 2026         Paid to GURLEEN KOUR                   Rs 300
+12:05 PM             UPI Transaction ID: 611992236644
+                     Paid by IndusInd Bank 7541
+
+29 Apr, 2026         Paid to Gulshan Sahu                   Rs 50
+12:08 PM             UPI Transaction ID: 611922632398
+                     Paid by IndusInd Bank 7541
+
+18 May, 2026         Paid to Ms MS LAXMAN HOTEL             Rs 80
+08:10 AM             UPI Transaction ID: 650429759317
+                     Paid by IDBI Bank 6486
+
+18 May, 2026         Paid to ConfirmTkt                     Rs 289
+09:52 AM             UPI Transaction ID: 650429271046
+                     Paid by IDBI Bank 6486
+''';
+    } else {
+      // Default HDFC
+      text = '''
 HDFC BANK ACCOUNT STATEMENT
 Period: 01/05/2026 To 05/06/2026
 Account Number: 1234567890
@@ -256,6 +313,7 @@ Date        Description                     Amount (Rs)  Type  Balance
 26/05/2026  Apollo Pharmacy Medicines       650.00       DR    29190.60
 25/05/2026  Udemy Course Purchase           389.00       DR    29840.60
 ''';
+    }
 
     graphics.drawString(
       text,

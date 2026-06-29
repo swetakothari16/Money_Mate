@@ -14,8 +14,36 @@ class RegExTransactionExtractorService implements TransactionExtractorService {
   List<ParsedTransaction> extractTransactions(String text) {
     final List<ParsedTransaction> transactions = [];
     
+    var rawText = text;
+    final tempLines = rawText.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
+    if (tempLines.isNotEmpty) {
+      final wordCount = rawText.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).length;
+      final avgWordsPerLine = wordCount / tempLines.length;
+      if (avgWordsPerLine < 1.8) {
+        // 1. Join all text with spaces to make it a single line
+        var cleanedText = tempLines.join(' ');
+        
+        // 2. Re-merge rupee symbols: e.g. "₹ 2" -> "₹2"
+        cleanedText = cleanedText.replaceAllMapped(RegExp(r'₹\s+(\d+)'), (m) => '₹${m.group(1)}');
+        
+        // 3. Remove bank details that confuse the amount parser: e.g. "Paid by IndusInd Bank 7541"
+        cleanedText = cleanedText.replaceAll(RegExp(r'Paid\s+(by|to)\s+[a-zA-Z\s]+Bank\s+\d{4}', caseSensitive: false), '');
+        
+        // 4. Format Date commas: Google Pay sometimes has "Mar , 2026"
+        cleanedText = cleanedText.replaceAllMapped(RegExp(r'\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-zA-Z]*\s*,\s*(\d{2,4})\b', caseSensitive: false), 
+            (m) => '${m.group(1)}, ${m.group(2)}');
+            
+        // 5. Put a newline before every date to split them into clean horizontal rows!
+        cleanedText = cleanedText.replaceAllMapped(
+            RegExp(r'(\b\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-zA-Z]*,\s+\d{2,4})', caseSensitive: false), 
+            (m) => '\n${m.group(1)}');
+            
+        rawText = cleanedText;
+      }
+    }
+
     // Split into non-empty cleaned lines
-    final List<String> rawLines = text
+    final List<String> rawLines = rawText
         .split('\n')
         .map((l) => l.trim())
         .where((l) => l.isNotEmpty)
@@ -27,7 +55,7 @@ class RegExTransactionExtractorService implements TransactionExtractorService {
     
     // 2. DD MMM YYYY, DD-MMM-YY (e.g. 05 Jun 2026, 5-Jun-26)
     final RegExp datePattern2 = RegExp(
-      r'\b(\d{1,2})[\s\-./]+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-zA-Z]*[\s\-./]+(\d{2,4})\b',
+      r'\b(\d{1,2})[\s\-./]+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-zA-Z]*[\s\-./,]+(\d{2,4})\b',
       caseSensitive: false,
     );
     
@@ -40,8 +68,8 @@ class RegExTransactionExtractorService implements TransactionExtractorService {
       caseSensitive: false,
     );
 
-    // Amount Pattern - matches formatted numbers surrounded by boundaries/spaces
-    final RegExp amountPattern = RegExp(r'(?<=^|\s)(?:[+-])?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{2})?(?=$|\s)');
+    // Amount Pattern - matches formatted numbers (including rupee symbols) surrounded by boundaries/spaces
+    final RegExp amountPattern = RegExp(r'(?<=^|\s)(?:[+-])?\s*₹?\s*(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{2})?(?=$|\s)');
 
     // Credit/Income indicators
     final List<String> creditKeywords = [
@@ -255,7 +283,7 @@ class RegExTransactionExtractorService implements TransactionExtractorService {
         .allMatches(remainingText)
         .map((m) => m.group(0)!)
         .where((s) {
-          final val = double.tryParse(s.replaceAll(',', ''));
+          final val = double.tryParse(s.replaceAll(RegExp(r'[^\d\.\-\+]'), ''));
           if (val == null || val <= 1.0) return false;
           // Ignore UTR numbers (large integers without decimal formats)
           if (val > 1000000 && !s.contains('.')) return false;
@@ -265,7 +293,7 @@ class RegExTransactionExtractorService implements TransactionExtractorService {
 
     if (numbers.isEmpty) return;
     final String amountStr = numbers.first;
-    final double? amount = double.tryParse(amountStr.replaceAll(',', ''));
+    final double? amount = double.tryParse(amountStr.replaceAll(RegExp(r'[^\d\.\-\+]'), ''));
     if (amount == null) return;
 
     for (final numStr in numbers) {
@@ -318,8 +346,8 @@ class RegExTransactionExtractorService implements TransactionExtractorService {
     if (isCredit) return;
 
     // 2. Find Description/Merchant line
-    // It's the first candidate line that is not a type word, not a number, and not a time value.
-    final RegExp timePattern = RegExp(r'\b\d{1,2}:\d{2}(?::\d{2})?(?:\s*[aApP][mM])?\b');
+    // Match standard times with colons, OR corrupted times that explicitly have AM/PM
+    final RegExp timePattern = RegExp(r'(?:\d{1,2}:\d{2}(?::\d{2})?(?:\s*[aApP][mM])?)|(?:\d{1,2}[^\w\d]{1,3}\d{2}(?:[^\w\d]{1,3}\d{2})?\s*[aApP][mM])', caseSensitive: false);
     String? rawMerchant;
     int merchantIndex = -1;
     for (int idx = 0; idx < candidates.length; idx++) {
@@ -330,7 +358,10 @@ class RegExTransactionExtractorService implements TransactionExtractorService {
                      lowerLine == 'dr' ||
                      lowerLine == 'cr' ||
                      lowerLine == 'type';
-      final isAmount = amountPattern.hasMatch(line) || line.contains('INR') || line.contains('Rs');
+      final isAmount = amountPattern.hasMatch(line) || 
+                       line.contains('INR') || 
+                       line.contains('Rs') || 
+                       line.contains('₹');
       final isTime = timePattern.hasMatch(line);
 
       if (!isType && !isAmount && !isTime &&
@@ -346,13 +377,14 @@ class RegExTransactionExtractorService implements TransactionExtractorService {
 
     if (rawMerchant == null || rawMerchant.trim().isEmpty || merchantIndex == -1) return;
 
-    // 3. Find amount numbers AFTER the description/merchant line
+    // 3. Find amount numbers anywhere in candidates
     final List<String> numbers = [];
-    for (int idx = merchantIndex + 1; idx < candidates.length; idx++) {
+    for (int idx = 0; idx < candidates.length; idx++) {
+      if (idx == merchantIndex) continue; // Skip the merchant line itself
       final line = candidates[idx];
       final matches = amountPattern.allMatches(line).map((m) => m.group(0)!).toList();
       for (final numStr in matches) {
-        final val = double.tryParse(numStr.replaceAll(',', ''));
+        final val = double.tryParse(numStr.replaceAll(RegExp(r'[^\d\.\-\+]'), ''));
         if (val != null && val > 1.0) {
           // Ignore UTR numbers (large integers without decimals)
           if (val > 1000000 && !numStr.contains('.')) continue;
@@ -362,7 +394,7 @@ class RegExTransactionExtractorService implements TransactionExtractorService {
     }
 
     if (numbers.isEmpty) return;
-    final double? amount = double.tryParse(numbers.first.replaceAll(',', ''));
+    final double? amount = double.tryParse(numbers.first.replaceAll(RegExp(r'[^\d\.\-\+]'), ''));
     if (amount == null) return;
 
     final String merchant = _cleanMerchantName(rawMerchant);
@@ -405,14 +437,20 @@ class RegExTransactionExtractorService implements TransactionExtractorService {
   String _cleanMerchantName(String text) {
     var cleaned = text;
 
-    // Remove "Paid to", "Received from" routing prefixes for clean merchant name output
-    cleaned = cleaned.replaceFirst(RegExp(r'^(Paid to|Received from|Debited from|Credited to)\s+', caseSensitive: false), '');
+    // 1. Remove time patterns that might have snuck in (e.g. 07 00 Am or 12:45)
+    cleaned = cleaned.replaceAll(RegExp(r'(?:\d{1,2}:\d{2}(?::\d{2})?(?:\s*[aApP][mM])?)|(?:\d{1,2}[^\w\d]{1,3}\d{2}(?:[^\w\d]{1,3}\d{2})?\s*[aApP][mM])', caseSensitive: false), ' ');
+    
+    // 2. Trim to bring the routing prefixes to the start of the string
+    cleaned = cleaned.trim();
+
+    // 3. Remove "Paid to", "Received from", "Debited from", "Credited to", "Paid by" routing prefixes for clean merchant name output
+    cleaned = cleaned.replaceFirst(RegExp(r'^(Paid to|Received from|Debited from|Credited to|Paid by)\s+', caseSensitive: false), '');
 
     // Remove hyphenated payment routing tags (e.g. -PAY- or PAY-)
     cleaned = cleaned.replaceAll(RegExp(r'\bPAY[\-\_]|[\-\_]PAY\b', caseSensitive: false), ' ');
 
     // Remove reference prefix patterns
-    cleaned = cleaned.replaceAll(RegExp(r'\b(UPI|Ref|IMPS|NEFT|FT|TXN|ID|RTGS|DR|CR|TRANSFER|NET|DEBIT|CREDIT|WITHDRAWAL|PAYMENT)\b', caseSensitive: false), '');
+    cleaned = cleaned.replaceAll(RegExp(r'\b(UPI|Ref|IMPS|NEFT|FT|TXN|ID|RTGS|DR|CR|TRANSFER|NET|DEBIT|CREDIT|WITHDRAWAL|PAYMENT|TRANSACTION)\b', caseSensitive: false), '');
     // Remove transaction ID numeric blocks (e.g. 3-digit or longer refs/short codes)
     cleaned = cleaned.replaceAll(RegExp(r'\b\d{3,16}\b'), '');
     // Remove common special characters
