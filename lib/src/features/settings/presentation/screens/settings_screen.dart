@@ -42,140 +42,61 @@ class SettingsScreen extends ConsumerWidget {
             ),
             children: [
               // ─── Profile Card ──────────────────────────────────────────
-              InkWell(
-                onTap: isAnonymous ? () => context.go('/login') : null,
-                borderRadius: BorderRadius.circular(AppDimens.radiusLg),
-                child: Container(
-                  padding: const EdgeInsets.all(AppDimens.lg),
-                  decoration: BoxDecoration(
-                    gradient: AppColors.cardGradientDark,
-                    borderRadius: BorderRadius.circular(AppDimens.radiusLg),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.08),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.08),
+              Container(
+                padding: const EdgeInsets.all(AppDimens.lg),
+                decoration: BoxDecoration(
+                  gradient: AppColors.cardGradientDark,
+                  borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
                     ),
+                  ],
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.08),
                   ),
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 28,
-                        backgroundColor: Colors.white.withOpacity(0.15),
-                        child: Icon(
-                          isAnonymous ? Icons.person_outline_rounded : Icons.person_rounded,
-                          size: 28,
-                          color: Colors.white,
-                        ),
+                ),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 28,
+                      backgroundColor: Colors.white.withOpacity(0.15),
+                      child: const Icon(
+                        Icons.person_rounded,
+                        size: 28,
+                        color: Colors.white,
                       ),
-                      const SizedBox(width: AppDimens.md),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              isAnonymous
-                                  ? (ref.watch(userNameProvider) ?? 'Offline Guest')
-                                  : (user.email ?? 'Expense Partner User'),
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 18,
-                              ),
+                    ),
+                    const SizedBox(width: AppDimens.md),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            ref.watch(userNameProvider) ?? 'Expense Partner User',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 18,
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              isAnonymous
-                                  ? 'Sign in to back up data'
-                                  : 'Cloud sync active',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: Colors.white70,
-                              ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Local Profile',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: Colors.white70,
                             ),
-                            const SizedBox(height: 8),
-                            _StatusBadge(isAnonymous: isAnonymous),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                      if (isAnonymous)
-                        const Icon(
-                          Icons.chevron_right_rounded,
-                          color: Colors.white70,
-                        ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuad),
 
               const SizedBox(height: AppDimens.xl),
-
-              // ─── Account Section ───────────────────────────────────────
-              _SettingsSection(
-                title: 'Account',
-                children: [
-                  if (isAnonymous)
-                    _SettingsTile(
-                      icon: Icons.cloud_queue_rounded,
-                      iconBgColor: const Color(0xFF10B981).withOpacity(0.12),
-                      iconColor: const Color(0xFF10B981),
-                      title: 'Back up Data / Register',
-                      subtitle: 'Save your data to a secure cloud account',
-                      onTap: () => context.go('/login'),
-                    ),
-                  _SettingsTile(
-                    icon: Icons.logout_rounded,
-                    iconBgColor: Colors.red.withOpacity(0.12),
-                    iconColor: const Color(0xFFEF4444),
-                    title: 'Sign Out',
-                    subtitle: isAnonymous
-                        ? 'Wipe guest session & return to login'
-                        : 'Wipe local cache & log out',
-                    onTap: () async {
-                      final confirm = await showDialog<bool>(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: const Text('Sign Out'),
-                          content: Text(
-                            isAnonymous
-                                ? 'Are you sure you want to sign out? This will wipe your local guest data and return you to the login page.'
-                                : 'Are you sure you want to sign out? This will wipe your local offline database and reset your profile settings. Your cloud data is safe and will be restored when you sign in again.',
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context, false),
-                              child: const Text('Cancel'),
-                            ),
-                            TextButton(
-                              onPressed: () => Navigator.pop(context, true),
-                              child: const Text('Sign Out', style: TextStyle(color: Colors.red)),
-                            ),
-                          ],
-                        ),
-                      );
-                      if (confirm == true) {
-                        // Reset preferences
-                        final uid = ref.read(authRepositoryProvider).currentUser?.uid;
-                        if (uid != null) {
-                          final prefs = ref.read(sharedPreferencesProvider);
-                          await prefs.remove('userName_$uid');
-                          await prefs.remove('userCurrencyCode_$uid');
-                          await prefs.remove('userCurrencySymbol_$uid');
-                          await prefs.remove('hasCompletedOnboarding_$uid');
-                          await prefs.remove('deletedSystemCategories_$uid');
-                        }
-                        // Set default currency symbol back
-                        CurrencyFormatter.updateCurrencySymbol('₹');
-
-                        await ref.read(authRepositoryProvider).signOut();
-                      }
-                    },
-                  ),
-                ],
-              ),
 
               // ─── General Section ───────────────────────────────────────
               _SettingsSection(

@@ -12,7 +12,6 @@ import '../../features/expenses/presentation/screens/calendar_screen.dart';
 import '../../features/statement_import/presentation/screens/statement_import_screen.dart';
 import '../../features/budgets/presentation/screens/add_budget_screen.dart';
 import '../../features/budgets/presentation/screens/budgets_screen.dart';
-import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/providers/auth_providers.dart';
 import '../../features/onboarding/presentation/screens/setup_screen.dart';
 import '../../core/providers/preferences_provider.dart';
@@ -21,7 +20,6 @@ import '../navigation/app_shell.dart';
 /// Named route paths.
 abstract class AppRoutes {
   static const String dashboard = '/';
-  static const String login = '/login';
   static const String setup = '/setup';
   static const String transactions = '/transactions';
   static const String budgets = '/budgets';
@@ -43,36 +41,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     debugLogDiagnostics: false,
     refreshListenable: GoRouterRefreshStream(authRepo.authStateChanges),
     redirect: (context, state) {
-      final user = authRepo.currentUser;
-      final isLoggingIn = state.matchedLocation == AppRoutes.login;
       final isOnboarding = state.matchedLocation == AppRoutes.setup;
 
-      if (user == null) {
-        return AppRoutes.login;
-      }
-
       if (!hasCompletedOnboarding) {
-        if (isOnboarding || isLoggingIn) return null;
+        if (isOnboarding) return null;
         return AppRoutes.setup;
       }
 
-      if (isLoggingIn || isOnboarding) {
-        if (user.isAnonymous && isLoggingIn) {
-          return null;
-        }
+      if (isOnboarding) {
         return AppRoutes.dashboard;
       }
 
       return null;
     },
     routes: [
-      GoRoute(
-        path: AppRoutes.login,
-        name: 'login',
-        pageBuilder: (context, state) => const NoTransitionPage(
-          child: LoginScreen(),
-        ),
-      ),
       GoRoute(
         path: AppRoutes.setup,
         name: 'setup',
